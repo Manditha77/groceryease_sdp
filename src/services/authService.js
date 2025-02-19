@@ -1,3 +1,4 @@
+// groceryease-frontend/src/services/authService.js
 import axios from 'axios';
 
 const API_URL = 'http://localhost:8080/api/auth';
@@ -7,12 +8,15 @@ const login = async (username, password) => {
     return response.data;
 };
 
-const register = async (username, password, email, role) => {
+const register = async (firstName, lastName, email, phoneNo, userType, username, password) => {
     const response = await axios.post(`${API_URL}/register`, {
+        firstName,
+        lastName,
+        email,
+        phoneNo,
+        userType,
         username,
         password,
-        email,
-        role,
     });
     return response.data;
 };
