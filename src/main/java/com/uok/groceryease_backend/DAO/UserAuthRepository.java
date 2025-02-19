@@ -1,4 +1,4 @@
-package com.uok.groceryease_backend.repository;
+package com.uok.groceryease_backend.DAO;
 
 import com.uok.groceryease_backend.entity.User;
 import com.uok.groceryease_backend.entity.UserAuth;
