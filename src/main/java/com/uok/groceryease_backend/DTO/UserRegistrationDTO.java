@@ -15,6 +15,7 @@ public class UserRegistrationDTO {
     private String lastName;
     private String email;
     private String phoneNo;
+    private String address;
     private UserType userType;
     private String username;
     private String password;

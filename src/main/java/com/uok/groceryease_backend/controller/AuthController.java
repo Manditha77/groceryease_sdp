@@ -37,6 +37,24 @@ public class AuthController {
         return ResponseEntity.ok(users);
     }
 
+    @GetMapping("/customers")
+    public ResponseEntity<List<UserRegistrationDTO>> getAllCustomers() {
+        List<UserRegistrationDTO> customers = userService.getAllCustomers();
+        return ResponseEntity.ok(customers);
+    }
+
+    @GetMapping("/employees")
+    public ResponseEntity<List<UserRegistrationDTO>> getAllEmployees() {
+        List<UserRegistrationDTO> employees = userService.getAllEmployees();
+        return ResponseEntity.ok(employees);
+    }
+
+    @GetMapping("/owners")
+    public ResponseEntity<List<UserRegistrationDTO>> getAllOwners() {
+        List<UserRegistrationDTO> owners = userService.getAllOwners();
+        return ResponseEntity.ok(owners);
+    }
+
     @PutMapping("/users/{userId}")
     public ResponseEntity<UserRegistrationDTO> updateUser(@PathVariable Long userId, @RequestBody UserRegistrationDTO userDTO) {
         UserRegistrationDTO updatedUser = userService.updateUser(userId, userDTO);
