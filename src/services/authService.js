@@ -5,15 +5,18 @@ const API_URL = 'http://localhost:8080/api/auth';
 
 const login = async (username, password) => {
     const response = await axios.post(`${API_URL}/login`, { username, password });
+    localStorage.setItem('authToken', response.data.token);
+
     return response.data;
 };
 
-const register = async (firstName, lastName, email, phoneNo, userType, username, password) => {
+const register = async (firstName, lastName, email, phoneNo, address, userType, username, password) => {
     const response = await axios.post(`${API_URL}/register`, {
         firstName,
         lastName,
         email,
         phoneNo,
+        address,
         userType,
         username,
         password,

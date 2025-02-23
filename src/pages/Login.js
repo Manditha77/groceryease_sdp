@@ -8,15 +8,16 @@ import logo from '../images/Rectangle 4139.png';
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const data = await authService.login(username, password);
-            navigate('/dashboard');
+            await authService.login(username, password);
+            navigate('/sidebar');
         } catch (error) {
-            console.error('Login failed', error);
+            setError('Login failed. Please check your credentials and try again.');
         }
     };
 
@@ -26,12 +27,9 @@ const Login = () => {
 
     return (
         <Grid container justifyContent="center" alignItems="center" sx={{ height: "90vh", px: 3 }}>
-            {/* Left Section - Logo */}
             <Grid item xs={12} md={6} sx={{ display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="GroceryEase Logo" width="60%" />
             </Grid>
-
-            {/* Right Section - Login Form */}
             <Grid item xs={12} md={6}>
                 <Box
                     sx={{
@@ -43,13 +41,17 @@ const Login = () => {
                         mx: "auto",
                     }}
                 >
-                    <Typography variant="h5" fontWeight="bold" color="green" gutterBottom>
+                    <Typography variant="h4" fontWeight="bold" align={"center"} color="green" gutterBottom>
                         Login
                     </Typography>
-                    <Typography variant="h6" color="textSecondary" gutterBottom>
-                        Welcome
+                    <Typography variant="h4" align={"center"} color="textSecondary" gutterBottom>
+                        Welcome to the GroceryEase
                     </Typography>
-
+                    {error && (
+                        <Typography color="error" align="center" gutterBottom>
+                            {error}
+                        </Typography>
+                    )}
                     <form onSubmit={handleLogin}>
                         <TextField
                             label="Username"
@@ -70,7 +72,6 @@ const Login = () => {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                         />
-
                         <Button
                             type="submit"
                             variant="contained"
@@ -79,14 +80,12 @@ const Login = () => {
                         >
                             Login
                         </Button>
-
                         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
                             <Button variant="text" sx={{ textTransform: "none", color: "gray" }}>
                                 Forgot Password?
                             </Button>
                         </Box>
                     </form>
-
                     <Typography sx={{ mt: 3, textAlign: "center", color: "gray" }}>
                         New to GroceryEase?{" "}
                         <Link onClick={handleRegisterClick} sx={{ fontWeight: "bold", color: "#2E7D32", cursor: "pointer" }}>
