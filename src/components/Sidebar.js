@@ -1,0 +1,99 @@
+import React from "react";
+import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider } from "@mui/material";
+import { Dashboard, People, Inventory, Store, Assessment, CreditCard, AccountCircle } from "@mui/icons-material";
+
+const Sidebar = () => {
+    return (
+        <Drawer
+            variant="permanent"
+            sx={{
+                width: 250,
+                flexShrink: 0,
+                "& .MuiDrawer-paper": {
+                    width: 250,
+                    boxSizing: "border-box",
+                    backgroundColor: "#F8F9FA", // Light gray background
+                    borderRight: "2px solid #ddd", // Sidebar border
+                },
+            }}
+        >
+            <Toolbar sx={{ backgroundColor: "#53f47e", height: "60px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                    GroceryEase
+                </Typography>
+            </Toolbar>
+            <List>
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <Dashboard />
+                        </ListItemIcon>
+                        <ListItemText primary="Dashboard" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <People />
+                        </ListItemIcon>
+                        <ListItemText primary="Manage Users" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <Inventory />
+                        </ListItemIcon>
+                        <ListItemText primary="Inventory" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <Store />
+                        </ListItemIcon>
+                        <ListItemText primary="Supplier Management" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <Assessment />
+                        </ListItemIcon>
+                        <ListItemText primary="Reports" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <CreditCard />
+                        </ListItemIcon>
+                        <ListItemText primary="Credit Customers" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton>
+                        <ListItemIcon>
+                            <AccountCircle />
+                        </ListItemIcon>
+                        <ListItemText primary="Profile" />
+                    </ListItemButton>
+                </ListItem>
+            </List>
+        </Drawer>
+    );
+};
+
+export default Sidebar;
