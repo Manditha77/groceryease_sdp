@@ -1,23 +1,33 @@
-// groceryease-frontend/src/pages/Login.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
-import { Box, Grid, TextField, Button, Typography, Link } from "@mui/material";
+import { Box, Grid, TextField, Button, Typography, Link, Snackbar, Alert } from "@mui/material";
 import logo from '../images/Rectangle 4139.png';
 
-const Login = () => {
+const Login = ({ setIsAuthenticated }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(''); // State for success message
+    const [open, setOpen] = useState(false); // State for Snackbar
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            await authService.login(username, password);
-            navigate('/sidebar');
+            const response = await authService.login(username, password);
+            localStorage.setItem('username', username); // Store username in local storage
+            localStorage.setItem('authToken', response.token); // Store auth token in local storage
+            setSuccess('Logged in successfully'); // Set success message
+            setError('');
+            setOpen(true); // Open Snackbar
+            setIsAuthenticated(true);
+            setTimeout(() => {
+                navigate('/sidebar'); // Navigate to the sidebar page
+            }, 2000); // Navigate after 2 seconds
         } catch (error) {
             setError('Login failed. Please check your credentials and try again.');
+            setSuccess('');
         }
     };
 
@@ -25,8 +35,20 @@ const Login = () => {
         navigate('/register');
     };
 
+    const handleClose = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setOpen(false);
+    };
+
     return (
         <Grid container justifyContent="center" alignItems="center" sx={{ height: "90vh", px: 3 }}>
+            <Snackbar open={open} autoHideDuration={2000} onClose={handleClose}>
+                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
+                    {success}
+                </Alert>
+            </Snackbar>
             <Grid item xs={12} md={6} sx={{ display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="GroceryEase Logo" width="60%" />
             </Grid>

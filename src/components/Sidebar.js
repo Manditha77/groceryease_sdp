@@ -14,14 +14,11 @@ const Sidebar = () => {
                     boxSizing: "border-box",
                     backgroundColor: "#F8F9FA", // Light gray background
                     borderRight: "2px solid #ddd", // Sidebar border
+                    marginTop: "64px", // Pushes Sidebar below Navbar (assuming Navbar height is 64px)
+                    height: `calc(100% - 64px)`, // Makes sure Sidebar fits below Navbar
                 },
             }}
         >
-            <Toolbar sx={{ backgroundColor: "#53f47e", height: "60px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-                    GroceryEase
-                </Typography>
-            </Toolbar>
             <List>
                 <ListItem disablePadding>
                     <ListItemButton>

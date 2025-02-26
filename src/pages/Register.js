@@ -39,6 +39,7 @@ const Register = () => {
                 formData.password
             );
             navigate('/login');
+            console.log('Registered successfully');
         } catch (error) {
             console.error('Registration failed', error);
         }
