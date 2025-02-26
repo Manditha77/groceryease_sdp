@@ -2,6 +2,7 @@ package com.uok.groceryease_backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -9,11 +10,19 @@ import lombok.*;
 @Table(name = "supplier")
 @NoArgsConstructor
 @AllArgsConstructor
-public class Supplier {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long supplierId;
+@PrimaryKeyJoinColumn(name = "user_id")
+public class Supplier extends User {
+
+    @Column(name = "supplier_id", unique = true, nullable = false, updatable = false)
+    private String supplierId;
 
     @Column(nullable = false)
     private String companyName;
+
+    @PrePersist
+    private void generateSupplierId() {
+        if (this.supplierId == null) {
+            this.supplierId = "SUP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        }
+    }
 }
