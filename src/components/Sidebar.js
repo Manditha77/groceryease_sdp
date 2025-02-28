@@ -1,9 +1,16 @@
-import React from "react";
-import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider } from "@mui/material";
+import React, { useState } from "react";
+import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider } from "@mui/material";
 import { Dashboard, People, Inventory, Store, Assessment, CreditCard, AccountCircle } from "@mui/icons-material";
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const Sidebar = () => {
+    const location = useLocation();
+    const [selectedIndex, setSelectedIndex] = useState(location.pathname);
+
+    const handleListItemClick = (event, index) => {
+        setSelectedIndex(index);
+    };
+
     return (
         <Drawer
             variant="permanent"
@@ -13,7 +20,7 @@ const Sidebar = () => {
                 "& .MuiDrawer-paper": {
                     width: 250,
                     boxSizing: "border-box",
-                    backgroundColor: "#F8F9FA", // Light gray background
+                    backgroundColor: "#e7eff3", // Light gray background
                     borderRight: "2px solid #ddd", // Sidebar border
                     marginTop: "64px", // Pushes Sidebar below Navbar (assuming Navbar height is 64px)
                     height: `calc(100% - 64px)`, // Makes sure Sidebar fits below Navbar
@@ -22,7 +29,12 @@ const Sidebar = () => {
         >
             <List>
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/dashboard">
+                    <ListItemButton
+                        component={Link}
+                        to="/dashboard"
+                        selected={selectedIndex === "/dashboard"}
+                        onClick={(event) => handleListItemClick(event, "/dashboard")}
+                    >
                         <ListItemIcon>
                             <Dashboard />
                         </ListItemIcon>
@@ -32,7 +44,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/manage-employees">
+                    <ListItemButton
+                        component={Link}
+                        to="/manage-employees"
+                        selected={selectedIndex === "/manage-employees"}
+                        onClick={(event) => handleListItemClick(event, "/manage-employees")}
+                    >
                         <ListItemIcon>
                             <People />
                         </ListItemIcon>
@@ -42,7 +59,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/inventory">
+                    <ListItemButton
+                        component={Link}
+                        to="/inventory"
+                        selected={selectedIndex === "/inventory"}
+                        onClick={(event) => handleListItemClick(event, "/inventory")}
+                    >
                         <ListItemIcon>
                             <Inventory />
                         </ListItemIcon>
@@ -52,7 +74,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/manage-suppliers">
+                    <ListItemButton
+                        component={Link}
+                        to="/manage-suppliers"
+                        selected={selectedIndex === "/manage-suppliers"}
+                        onClick={(event) => handleListItemClick(event, "/manage-suppliers")}
+                    >
                         <ListItemIcon>
                             <Store />
                         </ListItemIcon>
@@ -62,7 +89,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/reports">
+                    <ListItemButton
+                        component={Link}
+                        to="/reports"
+                        selected={selectedIndex === "/reports"}
+                        onClick={(event) => handleListItemClick(event, "/reports")}
+                    >
                         <ListItemIcon>
                             <Assessment />
                         </ListItemIcon>
@@ -72,7 +104,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/credit-customers">
+                    <ListItemButton
+                        component={Link}
+                        to="/credit-customers"
+                        selected={selectedIndex === "/credit-customers"}
+                        onClick={(event) => handleListItemClick(event, "/credit-customers")}
+                    >
                         <ListItemIcon>
                             <CreditCard />
                         </ListItemIcon>
@@ -82,7 +119,12 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton component={Link} to="/profile">
+                    <ListItemButton
+                        component={Link}
+                        to="/profile"
+                        selected={selectedIndex === "/profile"}
+                        onClick={(event) => handleListItemClick(event, "/profile")}
+                    >
                         <ListItemIcon>
                             <AccountCircle />
                         </ListItemIcon>
