@@ -23,8 +23,8 @@ const Login = ({ setIsAuthenticated }) => {
             setOpen(true); // Open Snackbar
             setIsAuthenticated(true);
             setTimeout(() => {
-                navigate('/sidebar'); // Navigate to the sidebar page
-            }, 2000); // Navigate after 2 seconds
+                navigate('/dashboard', { state : { success: 'Logged in successfully'} }); // Navigate to the sidebar page
+            }, );
         } catch (error) {
             setError('Login failed. Please check your credentials and try again.');
             setSuccess('');

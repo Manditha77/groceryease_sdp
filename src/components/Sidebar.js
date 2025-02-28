@@ -1,6 +1,7 @@
 import React from "react";
 import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider } from "@mui/material";
 import { Dashboard, People, Inventory, Store, Assessment, CreditCard, AccountCircle } from "@mui/icons-material";
+import { Link } from 'react-router-dom';
 
 const Sidebar = () => {
     return (
@@ -21,7 +22,7 @@ const Sidebar = () => {
         >
             <List>
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/dashboard">
                         <ListItemIcon>
                             <Dashboard />
                         </ListItemIcon>
@@ -31,17 +32,17 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/manage-employees">
                         <ListItemIcon>
                             <People />
                         </ListItemIcon>
-                        <ListItemText primary="Manage Users" />
+                        <ListItemText primary="Manage Employees" />
                     </ListItemButton>
                 </ListItem>
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/inventory">
                         <ListItemIcon>
                             <Inventory />
                         </ListItemIcon>
@@ -51,7 +52,7 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/manage-suppliers">
                         <ListItemIcon>
                             <Store />
                         </ListItemIcon>
@@ -61,7 +62,7 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/reports">
                         <ListItemIcon>
                             <Assessment />
                         </ListItemIcon>
@@ -71,7 +72,7 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/credit-customers">
                         <ListItemIcon>
                             <CreditCard />
                         </ListItemIcon>
@@ -81,7 +82,7 @@ const Sidebar = () => {
                 <Divider />
 
                 <ListItem disablePadding>
-                    <ListItemButton>
+                    <ListItemButton component={Link} to="/profile">
                         <ListItemIcon>
                             <AccountCircle />
                         </ListItemIcon>

@@ -10,6 +10,16 @@ const login = async (username, password) => {
     return response.data;
 };
 
+const getEmployees = async () => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get(`${API_URL}/employees`, {
+        headers: {
+            Authorization: `Bearer ${token}`, // Add token for authentication
+        }
+    });
+    return response.data;
+};
+
 const register = async (firstName, lastName, email, phoneNo, address, userType, username, password) => {
     const response = await axios.post(`${API_URL}/register`, {
         firstName,
@@ -27,4 +37,5 @@ const register = async (firstName, lastName, email, phoneNo, address, userType, 
 export default {
     login,
     register,
+    getEmployees,
 };

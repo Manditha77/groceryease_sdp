@@ -4,7 +4,9 @@ import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import Box from '@mui/material/Box';
 import { styled } from '@mui/system';
+import {AccountCircle} from "@mui/icons-material";
 
 const Title = styled(Typography)({
     flexGrow: 1,
@@ -46,9 +48,12 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                 {isAuthenticated ? (
                     <>
                         <Typography variant="h6" color="black" sx={{ marginRight: 2 }}>
-                            {username}
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <AccountCircle sx={{ marginRight: 0.2, fontSize: 35 }} />
+                                {username}
+                            </Box>
                         </Typography>
-                        <Button color="inherit" sx={{ textTransform: 'none' }} onClick={handleLogout}>
+                        <Button color="inherit" sx={{ textTransform: 'none', color: 'black', fontSize: 20 }} onClick={handleLogout}>
                             Logout
                         </Button>
                     </>
@@ -62,6 +67,16 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                         <Button color="inherit" sx={{ textTransform: 'none' }}>
                             <StyledLink to="/register" active={location.pathname === '/register'}>
                                 Customer Registration
+                            </StyledLink>
+                        </Button>
+                        <Button color="inherit" sx={{ textTransform: 'none' }}>
+                            <StyledLink to="/aboutUs" active={location.pathname === '/dashboard'}>
+                                About Us
+                            </StyledLink>
+                        </Button>
+                        <Button color="inherit" sx={{ textTransform: 'none' }}>
+                            <StyledLink to="/contactUs" active={location.pathname === '/dashboard'}>
+                                Contact Us
                             </StyledLink>
                         </Button>
                     </>
