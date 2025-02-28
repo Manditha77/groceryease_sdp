@@ -38,8 +38,7 @@ const Register = () => {
                 formData.username,
                 formData.password
             );
-            navigate('/login');
-            console.log('Registered successfully');
+            navigate('/login', { state: { success: 'Registered successfully' } });
         } catch (error) {
             console.error('Registration failed', error);
         }

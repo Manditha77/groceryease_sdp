@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../services/authService';
 import { Box, Grid, TextField, Button, Typography, Link, Snackbar, Alert } from "@mui/material";
 import logo from '../images/Rectangle 4139.png';
 
 const Login = ({ setIsAuthenticated }) => {
+    const location = useLocation();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState(''); // State for success message
+    const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
     const [open, setOpen] = useState(false); // State for Snackbar
+    const [openSuccess, setOpenSuccess] = useState(!!successMessage); // State for Snackbar
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
@@ -18,16 +20,13 @@ const Login = ({ setIsAuthenticated }) => {
             const response = await authService.login(username, password);
             localStorage.setItem('username', username); // Store username in local storage
             localStorage.setItem('authToken', response.token); // Store auth token in local storage
-            setSuccess('Logged in successfully'); // Set success message
-            setError('');
-            setOpen(true); // Open Snackbar
             setIsAuthenticated(true);
-            setTimeout(() => {
-                navigate('/dashboard', { state : { success: 'Logged in successfully'} }); // Navigate to the sidebar page
-            }, );
+
+            navigate('/dashboard', { state : { success: 'Logged in successfully'} }); // Navigate to the sidebar page
+
         } catch (error) {
             setError('Login failed. Please check your credentials and try again.');
-            setSuccess('');
+            setOpen(true);
         }
     };
 
@@ -40,15 +39,25 @@ const Login = ({ setIsAuthenticated }) => {
             return;
         }
         setOpen(false);
+        setOpenSuccess(false)
     };
 
     return (
         <Grid container justifyContent="center" alignItems="center" sx={{ height: "90vh", px: 3 }}>
-            <Snackbar open={open} autoHideDuration={2000} onClose={handleClose}>
-                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
-                    {success}
+            {/* Error Snackbar */}
+            <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+                <Alert onClose={handleClose} severity="error" sx={{ width: '100%', height: '100%' }}>
+                    {error}
                 </Alert>
             </Snackbar>
+
+            {/* Success Snackbar for Registration */}
+            <Snackbar open={openSuccess} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+                <Alert onClose={handleClose} severity="success" sx={{ width: '100%', height: '100%' }}>
+                    {successMessage}
+                </Alert>
+            </Snackbar>
+
             <Grid item xs={12} md={6} sx={{ display: "flex", justifyContent: "center" }}>
                 <img src={logo} alt="GroceryEase Logo" width="60%" />
             </Grid>
@@ -69,11 +78,6 @@ const Login = ({ setIsAuthenticated }) => {
                     <Typography variant="h4" align={"center"} color="textSecondary" gutterBottom>
                         Welcome to the GroceryEase
                     </Typography>
-                    {error && (
-                        <Typography color="error" align="center" gutterBottom>
-                            {error}
-                        </Typography>
-                    )}
                     <form onSubmit={handleLogin}>
                         <TextField
                             label="Username"
