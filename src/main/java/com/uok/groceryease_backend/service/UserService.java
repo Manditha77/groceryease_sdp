@@ -127,6 +127,15 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    public UserRegistrationDTO getUserByUsername(String username) {
+        UserAuth userAuth = userAuthRepository.findByUsername(username);
+        if (userAuth != null) {
+            User user = userAuth.getUser();
+            return convertToDTO(user, userAuth);
+        }
+        return null; // or throw an exception
+    }
+
     public UserRegistrationDTO updateUser(Long userId, UserRegistrationDTO userDTO) {
         Optional<User> optionalUser = userRepository.findById(userId);
         if (optionalUser.isPresent()) {

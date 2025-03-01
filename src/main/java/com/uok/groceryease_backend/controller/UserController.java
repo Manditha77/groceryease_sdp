@@ -55,6 +55,15 @@ public class UserController {
         return ResponseEntity.ok(owners);
     }
 
+    @GetMapping("/users/{username}")
+    public ResponseEntity<UserRegistrationDTO> getUserByUsername(@PathVariable String username) {
+        UserRegistrationDTO user = userService.getUserByUsername(username);
+        if (user != null) {
+            return ResponseEntity.ok(user);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @PutMapping("/users/{userId}")
     public ResponseEntity<UserRegistrationDTO> updateUser(@PathVariable Long userId, @RequestBody UserRegistrationDTO userDTO) {
         UserRegistrationDTO updatedUser = userService.updateUser(userId, userDTO);
