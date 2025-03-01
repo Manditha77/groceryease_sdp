@@ -21,6 +21,16 @@ const getEmployees = async () => {
     return response.data;
 };
 
+const getUser = async (username) => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get(`${API_URL_USER}/users/${username}`, {
+        headers: {
+            Authorization: `Bearer ${token}`, // Add token for authentication
+        }
+    });
+    return response.data;
+};
+
 const register = async (firstName, lastName, email, phoneNo, address, userType, username, password) => {
     const response = await axios.post(`${API_URL_USER}/register`, {
         firstName,
@@ -35,13 +45,30 @@ const register = async (firstName, lastName, email, phoneNo, address, userType, 
     return response.data;
 };
 
+const updateUser = async (userId, firstName, lastName, email, phoneNo, address, userType, username, password) => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.put(`${API_URL_USER}/users/${userId}`, {
+        firstName,
+        lastName,
+        email,
+        phoneNo,
+        address,
+        userType,
+        username,
+        password,
+    }, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+}
+
 const deleteUser = async (userId) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.delete(`${API_URL_USER}/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
-}
+};
 
 const getSuppliers = async () => {
     const token = localStorage.getItem('authToken');
@@ -81,4 +108,6 @@ export default {
     getSuppliers,
     registerSupplier,
     deleteSupplier,
+    getUser,
+    updateUser,
 };

@@ -34,7 +34,9 @@ const ManageEmployee = () => {
     });
     const navigate = useNavigate();
     const [employees, setEmployees] = useState([]);
-    const [open, setOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(null);
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -51,12 +53,80 @@ const ManageEmployee = () => {
             } catch (error) {
                 console.error('Error fetching employees:', error);
             }
-        };
+        }
 
         fetchEmployees();
-    }, []);
+    }, [])
 
-    const handleRegisterEmployee = async () => {
+
+
+    const handleUpdateEmployee = async (userId) => {
+        const employee = employees.find((employee) => employee.userId === userId);
+        setFormData({
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            email: employee.email,
+            phoneNo: employee.phoneNo,
+            address: employee.address,
+            username: employee.username,
+            password: '', // Clear password fields for security
+            confirmPassword: '',
+        });
+        setSelectedUserId(userId);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    const handleConfirmUpdateEmployee = async () => {
+        if (formData.password !== formData.confirmPassword) {
+            alert("Passwords do not match!");
+            return;
+        }
+
+        try {
+            const updatedEmployee = await authService.updateUser(
+                selectedUserId,
+                formData.firstName,
+                formData.lastName,
+                formData.email,
+                formData.phoneNo,
+                formData.address,
+                'EMPLOYEE',
+                formData.username,
+                formData.password
+            );
+            const updatedEmployees = employees.map((employee) =>
+                employee.userId === selectedUserId ? updatedEmployee : employee
+            );
+            setEmployees(updatedEmployees);
+            setSnackbarMessage('Employee updated successfully');
+            setSnackbarOpen(true);
+        } catch (error) {
+            console.error('Error updating employee:', error);
+        } finally {
+            setFormData({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phoneNo: '',
+                address: '',
+                username: '',
+                password: '',
+                confirmPassword: '',
+            });
+            setSelectedUserId(null);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const handleOpenRegisterDialog = () => {
+        setRegisterDialogOpen(true);
+    }
+
+    const handleCloseRegisterDialog = () => {
+        setRegisterDialogOpen(false);
+    }
+
+    const handleConfirmRegisterEmployee = async () => {
         if (formData.password !== formData.confirmPassword) {
             alert("Passwords do not match!");
             return;
@@ -89,16 +159,18 @@ const ManageEmployee = () => {
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error adding employee:', error);
+        }  finally {
+            handleCloseRegisterDialog();
         }
     }
 
-    const handleOpenDialog = (userId) => {
+    const handleOpenDeleteDialog = (userId) => {
         setSelectedUserId(userId);
-        setOpen(true);
+        setDeleteDialogOpen(true);
     };
 
-    const handleCloseDialog = () => {
-        setOpen(false);
+    const handleCloseDeleteDialog = () => {
+        setDeleteDialogOpen(false);
         setSelectedUserId(null);
     };
 
@@ -112,7 +184,7 @@ const ManageEmployee = () => {
         } catch (error) {
             console.error('Error deleting employee:', error);
         } finally {
-            handleCloseDialog();
+            handleCloseDeleteDialog();
         }
     };
 
@@ -145,8 +217,8 @@ const ManageEmployee = () => {
                                     <TableCell>{employee.username}</TableCell>
                                     <TableCell>{employee.email}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }}>Edit</Button>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDialog(employee.userId)}>Delete</Button>
+                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateEmployee(employee.userId)}>Edit</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(employee.userId)}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -157,12 +229,10 @@ const ManageEmployee = () => {
 
             <Box sx={{ paddingTop: 5 }}>
                 <Typography variant="h4" align="center" gutterBottom style={{color: '#0478C0'}}>
-                    Register Employee
+                    {selectedUserId ? 'Update Employee' : 'Register Employee'}
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
-
-                        {/* Left Section: Customer Details */}
                         <Grid item xs={12} md={6}>
                             <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
                                 Employee Details
@@ -186,14 +256,10 @@ const ManageEmployee = () => {
                             </Grid>
                         </Grid>
 
-
-                        {/* Avatar - Centered */}
                         <Grid item xs={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <Avatar sx={{ width: 150, height: 150, bgcolor: 'lightgray' }}>
-                                <PersonIcon fontSize="large" />
-                            </Avatar>
+                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
                         </Grid>
-                        {/* Right Section: Login Details */}
+
                         <Grid item xs={12} md={6}>
                             <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
                                 Login Details
@@ -211,22 +277,21 @@ const ManageEmployee = () => {
                             </Grid>
                         </Grid>
 
-                        {/* Register Button */}
                         <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Button
                                 variant="contained"
                                 style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
-                                onClick={handleRegisterEmployee}
+                                onClick={selectedUserId ? handleConfirmUpdateEmployee : handleOpenRegisterDialog}
                                 size="large"
                             >
-                                Register
+                                {selectedUserId ? 'Confirm Update' : 'Register'}
                             </Button>
                         </Grid>
                     </Grid>
                 </Paper>
             </Box>
 
-            <Dialog open={open} onClose={handleCloseDialog}>
+            <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
                 <DialogTitle>Confirm Deletion</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
@@ -234,11 +299,28 @@ const ManageEmployee = () => {
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>
+                    <Button onClick={handleCloseDeleteDialog}>
                         Cancel
                     </Button>
                     <Button onClick={handleConfirmDelete}>
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={registerDialogOpen} onClose={handleCloseRegisterDialog}>
+                <DialogTitle>Confirm Registration</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to register this employee?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseRegisterDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleConfirmRegisterEmployee}>
+                        Register
                     </Button>
                 </DialogActions>
             </Dialog>

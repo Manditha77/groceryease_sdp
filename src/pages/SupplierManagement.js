@@ -30,7 +30,8 @@ const SupplierManagement = () => {
     });
 
     const [suppliers, setSuppliers] = useState([]);
-    const [open, setOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -52,7 +53,15 @@ const SupplierManagement = () => {
         fetchSuppliers();
     }, []);
 
-    const handleRegisterSupplier = async () => {
+    const handleOpenRegisterDialog = () => {
+        setRegisterDialogOpen(true);
+    }
+
+    const handleCloseRegisterDialog = () => {
+        setRegisterDialogOpen(false);
+    }
+
+    const handleConfirmRegisterSupplier = async () => {
         if (formData.password !== formData.confirmPassword) {
             alert("Passwords do not match!");
             return;
@@ -80,16 +89,18 @@ const SupplierManagement = () => {
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error adding supplier:', error);
+        } finally {
+            handleCloseRegisterDialog();
         }
     }
 
-    const handleOpenDialog = (userId) => {
+    const handleOpenDeleteDialog = (userId) => {
         setSelectedUserId(userId);
-        setOpen(true);
+        setDeleteDialogOpen(true);
     };
 
-    const handleCloseDialog = () => {
-        setOpen(false);
+    const handleCloseDeleteDialog = () => {
+        setDeleteDialogOpen(false);
         setSelectedUserId(null);
     };
 
@@ -103,7 +114,7 @@ const SupplierManagement = () => {
         } catch (error) {
             console.error('Error deleting supplier:', error);
         } finally {
-            handleCloseDialog();
+            handleCloseDeleteDialog();
         }
     };
     return (
@@ -134,7 +145,7 @@ const SupplierManagement = () => {
                                     <TableCell>{supplier.email}</TableCell>
                                     <TableCell>
                                         <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }}>Edit</Button>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDialog(supplier.userId)}>Delete</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(supplier.userId)}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -177,9 +188,7 @@ const SupplierManagement = () => {
 
                         {/* Avatar - Centered */}
                         <Grid item xs={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <Avatar sx={{ width: 150, height: 150, bgcolor: 'lightgray' }}>
-                                <PersonIcon fontSize="large" />
-                            </Avatar>
+                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
                         </Grid>
 
                         {/* Register Button */}
@@ -187,7 +196,7 @@ const SupplierManagement = () => {
                             <Button
                                 variant="contained"
                                 style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
-                                onClick={handleRegisterSupplier}
+                                onClick={handleOpenRegisterDialog}
                                 size="large"
                             >
                                 Register
@@ -197,19 +206,36 @@ const SupplierManagement = () => {
                 </Paper>
             </Box>
 
-            <Dialog open={open} onClose={handleCloseDialog}>
+            <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
                 <DialogTitle>Confirm Deletion</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Are you sure you want to delete this employee?
+                        Are you sure you want to delete this supplier?
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>
+                    <Button onClick={handleCloseDeleteDialog}>
                         Cancel
                     </Button>
                     <Button onClick={handleConfirmDelete}>
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={registerDialogOpen} onClose={handleCloseRegisterDialog}>
+                <DialogTitle>Confirm Registration</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to register this supplier?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseRegisterDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleConfirmRegisterSupplier}>
+                        Register
                     </Button>
                 </DialogActions>
             </Dialog>

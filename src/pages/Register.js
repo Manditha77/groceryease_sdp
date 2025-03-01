@@ -79,9 +79,7 @@ const Register = () => {
 
                     {/* Avatar - Centered */}
                     <Grid item xs={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <Avatar sx={{ width: 150, height: 150, bgcolor: 'lightgray' }}>
-                            <PersonIcon fontSize="large" />
-                        </Avatar>
+                        <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
                     </Grid>
                     {/* Right Section: Login Details */}
                     <Grid item xs={12} md={6}>
