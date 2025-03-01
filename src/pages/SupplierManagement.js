@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import {
     Box,
@@ -29,7 +28,7 @@ const SupplierManagement = () => {
         phoneNo: '',
         companyName: '',
     });
-    const navigate = useNavigate();
+
     const [suppliers, setSuppliers] = useState([]);
     const [open, setOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
