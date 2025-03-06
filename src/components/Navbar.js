@@ -7,6 +7,11 @@ import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import { styled } from '@mui/system';
 import {AccountCircle} from "@mui/icons-material";
+import {Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,} from "@mui/material";
 
 const Title = styled(Typography)({
     flexGrow: 1,
@@ -23,6 +28,7 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const [username, setUsername] = useState('');
+    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
     useEffect(() => {
         const storedUsername = localStorage.getItem('username');
@@ -31,11 +37,20 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
         }
     }, [location]);
 
+    const handleOpenDialogLogout = () => {
+        setLogoutDialogOpen(true);
+    }
+
+    const handleCloseDialogLogout = () => {
+        setLogoutDialogOpen(false);
+    }
+
     const handleLogout = () => {
         localStorage.removeItem('username');
         localStorage.removeItem('authToken');
         setUsername('');
         setIsAuthenticated(false); // Update state immediately
+        setLogoutDialogOpen(false);
         navigate('/login'); // Navigate to login page
     };
 
@@ -53,7 +68,7 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                                 {username}
                             </Box>
                         </Typography>
-                        <Button color="inherit" sx={{ textTransform: 'none', color: 'black', fontSize: 20 }} onClick={handleLogout}>
+                        <Button color="inherit" sx={{ textTransform: 'none', color: 'black', fontSize: 20 }} onClick={handleOpenDialogLogout}>
                             Logout
                         </Button>
                     </>
@@ -82,6 +97,18 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                     </>
                 )}
             </Toolbar>
+            <Dialog open={logoutDialogOpen} onClose={handleCloseDialogLogout}>
+                <DialogTitle>Logout</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to logout?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDialogLogout}>Cancel</Button>
+                    <Button onClick={handleLogout}>Logout</Button>
+                </DialogActions>
+            </Dialog>
         </AppBar>
     );
 };

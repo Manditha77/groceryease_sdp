@@ -32,6 +32,7 @@ const SupplierManagement = () => {
     const [suppliers, setSuppliers] = useState([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -94,6 +95,60 @@ const SupplierManagement = () => {
         }
     }
 
+    const handleOpenUpdateDialog = () => {
+        setUpdateDialogOpen(true);
+    }
+
+    const handleCloseUpdateDialog = () => {
+        setUpdateDialogOpen(false);
+    }
+
+    const handleUpdateSupplier = async (userId) => {
+        const supplier = suppliers.find((supplier) => supplier.userId === userId);
+        setFormData({
+            firstName: supplier.firstName,
+            lastName: supplier.lastName,
+            email: supplier.email,
+            phoneNo: supplier.phoneNo,
+            companyName: supplier.companyName,
+        });
+        setSelectedUserId(userId);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    const handleConfirmUpdateSupplier = async () => {
+        try {
+            const updatedSupplier = await authService.updateSupplier(
+                selectedUserId,
+                formData.firstName,
+                formData.lastName,
+                formData.email,
+                formData.phoneNo,
+                formData.companyName,
+            );
+
+            const updatedSuppliers = suppliers.map((supplier) =>
+                supplier.userId === selectedUserId ? updatedSupplier : supplier
+            );
+            setSuppliers(updatedSuppliers);
+            setSnackbarMessage('Supplier updated successfully');
+            setSnackbarOpen(true);
+        } catch (error) {
+            console.error('Error updating supplier:', error);
+        } finally {
+            setFormData({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phoneNo: '',
+                companyName: '',
+            });
+            setSelectedUserId(null);
+            handleCloseUpdateDialog();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
     const handleOpenDeleteDialog = (userId) => {
         setSelectedUserId(userId);
         setDeleteDialogOpen(true);
@@ -144,7 +199,7 @@ const SupplierManagement = () => {
                                     <TableCell>{supplier.phoneNo}</TableCell>
                                     <TableCell>{supplier.email}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }}>Edit</Button>
+                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateSupplier(supplier.userId)}>Edit</Button>
                                         <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(supplier.userId)}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
@@ -156,7 +211,7 @@ const SupplierManagement = () => {
 
             <Box sx={{ paddingTop: 5 }}>
                 <Typography variant="h4" align="center" gutterBottom style={{color: '#0478C0'}}>
-                    Register Supplier
+                    {selectedUserId ? 'Update Supplier' : 'Register Supplier'}
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
@@ -196,10 +251,10 @@ const SupplierManagement = () => {
                             <Button
                                 variant="contained"
                                 style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
-                                onClick={handleOpenRegisterDialog}
+                                onClick={selectedUserId ? handleOpenUpdateDialog : handleOpenRegisterDialog}
                                 size="large"
                             >
-                                Register
+                                {selectedUserId ? 'Update Supplier' : 'Register Supplier'}
                             </Button>
                         </Grid>
                     </Grid>
@@ -236,6 +291,23 @@ const SupplierManagement = () => {
                     </Button>
                     <Button onClick={handleConfirmRegisterSupplier}>
                         Register
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={updateDialogOpen} onClose={handleCloseUpdateDialog}>
+                <DialogTitle>Confirm Update</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to update this supplier?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseUpdateDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleConfirmUpdateSupplier}>
+                        Update
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -91,6 +91,20 @@ const registerSupplier = async (firstName, lastName, email, phoneNo, companyName
     });
     return response.data;
 };
+// authService.js
+const updateSupplier = async (userId, firstName, lastName, email, phoneNo, companyName) => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.put(`${API_URL_SUPPLIER}/update/${userId}`, {
+        firstName,
+        lastName,
+        email,
+        phoneNo,
+        companyName,
+    }, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+}
 
 const deleteSupplier = async (userId) => {
     const token = localStorage.getItem('authToken');
@@ -110,4 +124,5 @@ export default {
     deleteSupplier,
     getUser,
     updateUser,
+    updateSupplier,
 };

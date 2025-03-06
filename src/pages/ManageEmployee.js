@@ -36,7 +36,7 @@ const ManageEmployee = () => {
     const [employees, setEmployees] = useState([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
-    const [updateDialogOpen, setUpdateDialogOpen] = useState(null);
+    const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -58,7 +58,13 @@ const ManageEmployee = () => {
         fetchEmployees();
     }, [])
 
+    const handleOpenUpdateDialog = () => {
+        setUpdateDialogOpen(true);
+    }
 
+    const handleCloseUpdateDialog = () => {
+        setUpdateDialogOpen(false);
+    }
 
     const handleUpdateEmployee = async (userId) => {
         const employee = employees.find((employee) => employee.userId === userId);
@@ -77,10 +83,10 @@ const ManageEmployee = () => {
     }
 
     const handleConfirmUpdateEmployee = async () => {
-        if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
-            return;
-        }
+        // if (formData.password !== formData.confirmPassword) {
+        //     alert("Passwords do not match!");
+        //     return;
+        // }
 
         try {
             const updatedEmployee = await authService.updateUser(
@@ -114,6 +120,7 @@ const ManageEmployee = () => {
                 confirmPassword: '',
             });
             setSelectedUserId(null);
+            handleCloseUpdateDialog();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
@@ -260,19 +267,19 @@ const ManageEmployee = () => {
                             <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
                         </Grid>
 
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12} md={6} hidden={!!selectedUserId}>
                             <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
                                 Login Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Username" name="username" value={formData.username} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Username" name="username" value={formData.username} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Password" name="password" type="password" value={formData.password} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Password" name="password" type="password" value={formData.password} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Confirm Password" name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Confirm Password" name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -281,7 +288,7 @@ const ManageEmployee = () => {
                             <Button
                                 variant="contained"
                                 style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
-                                onClick={selectedUserId ? handleConfirmUpdateEmployee : handleOpenRegisterDialog}
+                                onClick={selectedUserId ? handleOpenUpdateDialog : handleOpenRegisterDialog}
                                 size="large"
                             >
                                 {selectedUserId ? 'Confirm Update' : 'Register'}
@@ -321,6 +328,23 @@ const ManageEmployee = () => {
                     </Button>
                     <Button onClick={handleConfirmRegisterEmployee}>
                         Register
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={updateDialogOpen} onClose={handleCloseUpdateDialog}>
+                <DialogTitle>Confirm Update</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to update this employee?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseUpdateDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleConfirmUpdateEmployee}>
+                        Update
                     </Button>
                 </DialogActions>
             </Dialog>
