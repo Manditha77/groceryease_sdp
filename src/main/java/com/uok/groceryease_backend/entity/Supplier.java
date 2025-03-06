@@ -2,6 +2,8 @@ package com.uok.groceryease_backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -18,6 +20,9 @@ public class Supplier extends User {
 
     @Column(nullable = false)
     private String companyName;
+
+    @OneToMany(mappedBy = "supplier", cascade = CascadeType.ALL)
+    private List<Product> products;
 
     @PrePersist
     private void generateSupplierId() {
