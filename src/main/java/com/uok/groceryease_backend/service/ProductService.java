@@ -34,11 +34,11 @@ public class ProductService {
         product.setBuyingPrice(productDTO.getBuyingPrice());
         product.setSellingPrice(productDTO.getSellingPrice());
 
-        Category category = categoryRepository.findById(productDTO.getCategoryId())
+        Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
         product.setCategory(category);
 
-        Supplier supplier = supplierRepository.findById(productDTO.getSupplierId())
+        Supplier supplier = supplierRepository.findByCompanyName(productDTO.getSupplierCompanyName())
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
         product.setSupplier(supplier);
 
@@ -61,11 +61,11 @@ public class ProductService {
             product.setBuyingPrice(productDTO.getBuyingPrice());
             product.setSellingPrice(productDTO.getSellingPrice());
 
-            Category category = categoryRepository.findById(productDTO.getCategoryId())
+            Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
             product.setCategory(category);
 
-            Supplier supplier = supplierRepository.findById(productDTO.getSupplierId())
+            Supplier supplier = supplierRepository.findByCompanyName(productDTO.getSupplierCompanyName())
                     .orElseThrow(() -> new RuntimeException("Supplier not found"));
             product.setSupplier(supplier);
 
