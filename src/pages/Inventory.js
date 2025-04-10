@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert } from "@mui/material";
 import productServices from "../services/productServices";
+import categoryService from "../services/categoryService";
 
 const Inventory = () => {
     const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [formData, setFormData] = useState({
         productName: '',
         categoryName: '',
@@ -23,6 +25,12 @@ const Inventory = () => {
     useEffect(() => {
         productServices.getAllProducts().then(response => {
             setProducts(response.data);
+        });
+    }, []);
+
+    useEffect(() => {
+        categoryService.getAllCategories().then(response => {
+            setCategories(response.data);
         });
     }, []);
 
@@ -229,6 +237,34 @@ const Inventory = () => {
                         </Button>
                     </Grid>
                 </Paper>
+            </Box>
+
+            <Box>
+                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', paddingTop: 5 }}>
+                    Categories
+                </Typography>
+                <TableContainer component={Paper}>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Category ID</TableCell>
+                                <TableCell>Category Name</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {categories.map((category) => (
+                                <TableRow key={category.categoryId}>
+                                    <TableCell>{category.categoryId}</TableCell>
+                                    <TableCell>{category.categoryName}</TableCell>
+                                    <TableCell>
+                                        <Button variant="contained" style={{ marginRight: 8 }} sx={{ bgcolor: '#007bff' }}>Edit</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }}>Delete</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             </Box>
 
             <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
