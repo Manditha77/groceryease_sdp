@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     Optional<Supplier> findByCompanyName(String companyName);
+//    boolean existsByName(String name);
 }

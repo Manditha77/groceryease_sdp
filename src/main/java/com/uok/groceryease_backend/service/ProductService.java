@@ -42,6 +42,14 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
         product.setSupplier(supplier);
 
+        if (productRepository.existsByProductName(productDTO.getProductName())) {
+            throw new IllegalArgumentException("Product already exists");
+        }
+
+        if (productDTO.getBuyingPrice() > productDTO.getSellingPrice()) {
+            throw new IllegalArgumentException("Buying price must be less than or equal to selling price");
+        }
+
         return convertToDTO(productRepository.save(product));
     }
 
@@ -68,6 +76,10 @@ public class ProductService {
             Supplier supplier = supplierRepository.findByCompanyName(productDTO.getSupplierCompanyName())
                     .orElseThrow(() -> new RuntimeException("Supplier not found"));
             product.setSupplier(supplier);
+
+            if (productDTO.getBuyingPrice() > productDTO.getSellingPrice()) {
+                throw new IllegalArgumentException("Buying price must be less than or equal to selling price");
+            }
 
             return convertToDTO(productRepository.save(product));
         }

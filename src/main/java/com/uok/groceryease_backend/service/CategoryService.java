@@ -17,6 +17,10 @@ public class CategoryService {
     private CategoryRepository categoryRepository;
 
     public CategoryDTO addCategory(CategoryDTO categoryDTO) {
+        if (categoryRepository.existsByCategoryName(categoryDTO.getCategoryName())) {
+            throw new IllegalArgumentException("Category already exists");
+        }
+
         Category category = new Category();
         category.setCategoryName(categoryDTO.getCategoryName());
         return convertToDTO(categoryRepository.save(category));
