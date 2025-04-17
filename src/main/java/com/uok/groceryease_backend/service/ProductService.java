@@ -33,6 +33,7 @@ public class ProductService {
         product.setQuantity(productDTO.getQuantity());
         product.setBuyingPrice(productDTO.getBuyingPrice());
         product.setSellingPrice(productDTO.getSellingPrice());
+        product.setImage(productDTO.getImage());
 
         Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -41,6 +42,8 @@ public class ProductService {
         Supplier supplier = supplierRepository.findByCompanyName(productDTO.getSupplierCompanyName())
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
         product.setSupplier(supplier);
+
+
 
         if (productRepository.existsByProductName(productDTO.getProductName())) {
             throw new IllegalArgumentException("Product already exists");
@@ -68,6 +71,7 @@ public class ProductService {
             product.setQuantity(productDTO.getQuantity());
             product.setBuyingPrice(productDTO.getBuyingPrice());
             product.setSellingPrice(productDTO.getSellingPrice());
+            product.setImage(productDTO.getImage());
 
             Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -102,6 +106,12 @@ public class ProductService {
         productDTO.setCategoryName(product.getCategory().getCategoryName());
         productDTO.setSupplierId(product.getSupplier().getUserId());
         productDTO.setSupplierCompanyName(product.getSupplier().getCompanyName());
+        productDTO.setImage(product.getImage());
+
+        // Convert image to Base64 string
+        if (product.getImage() != null) {
+            productDTO.setBase64Image(java.util.Base64.getEncoder().encodeToString(product.getImage()));
+        }
         return productDTO;
     }
 }

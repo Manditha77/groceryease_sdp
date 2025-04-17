@@ -40,4 +40,8 @@ public class Product {
     @ManyToOne
     @JoinColumn(name = "supplierId", nullable = false)
     private Supplier supplier;
+
+    @Lob
+    @Column(name = "image", columnDefinition = "BLOB")
+    private byte[] image;  // Field to store the image as a BLOB
 }

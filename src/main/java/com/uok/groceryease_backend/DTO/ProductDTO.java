@@ -32,4 +32,8 @@ public class ProductDTO {
     private Long supplierId;
 
     private String supplierCompanyName;
+
+    private byte[] image;  // Field to store the image as a BLOB
+
+    private String base64Image; // Field to store the Base64-encoded image
 }
