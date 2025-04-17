@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Autocomplete } from "@mui/material";
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
@@ -28,7 +28,8 @@ const Inventory = () => {
         quantity: '',
         buyingPrice: '',
         sellingPrice: '',
-        supplierCompanyName: ''
+        supplierCompanyName: '',
+        productImage: null
     });
     const [formDataCategory, setFormDataCategory] = useState({
         newCategoryName: ''
@@ -169,8 +170,8 @@ const Inventory = () => {
     };
 
     const handleConfirmRegisterProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice) {
-            setSnackbarErrorMessage('Please fill in all required fields');
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice || !formData.productImage) {
+            setSnackbarErrorMessage('Please fill in all required fields, including an image');
             setSnackbarErrorOpen(true);
             return;
         }
@@ -211,15 +212,25 @@ const Inventory = () => {
         }
 
         try {
-            const newProduct = {
-                productName: formData.productName,
-                categoryName: formData.categoryName,
-                quantity: formData.quantity,
-                buyingPrice: formData.buyingPrice,
-                sellingPrice: formData.sellingPrice,
-                supplierCompanyName: formData.supplierCompanyName
-            };
-            const response = await productServices.addProduct(newProduct);
+            const formDataToSend = new FormData();
+            formDataToSend.append("productName", formData.productName);
+            formDataToSend.append("categoryName", formData.categoryName);
+            const quantity = parseInt(formData.quantity);
+            formDataToSend.append("quantity", isNaN(quantity) ? 0 : quantity);
+
+            const buyingPrice = parseFloat(formData.buyingPrice);
+            formDataToSend.append("buyingPrice", isNaN(buyingPrice) ? 0.0 : buyingPrice);
+
+            const sellingPrice = parseFloat(formData.sellingPrice);
+            formDataToSend.append("sellingPrice", isNaN(sellingPrice) ? 0.0 : sellingPrice);
+
+            formDataToSend.append("supplierCompanyName", formData.supplierCompanyName);
+            formDataToSend.append("image", formData.productImage);
+
+            console.log("formData.productImage:", formData.productImage);
+
+
+            const response = await productServices.addProduct(formDataToSend); // Send FormData to backend
             setProducts([...products, response.data]);
             setSnackbarMessage('Product added successfully');
             setSnackbarOpen(true);
@@ -229,16 +240,19 @@ const Inventory = () => {
                 quantity: '',
                 buyingPrice: '',
                 sellingPrice: '',
-                supplierCompanyName: ''
+                supplierCompanyName: '',
+                productImage: null
             });
         } catch (error) {
             console.error('Error adding product:', error);
-            setSnackbarMessage('Failed to add product');
-            setSnackbarOpen(true);
+            setSnackbarErrorMessage('Failed to add product');
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseRegisterDialog();
         }
     };
+
+    const updateSectionRef = useRef(null);
 
     const handleUpdateProduct = (productId) => {
         const product = products.find((product) => product.productId === productId);
@@ -248,11 +262,12 @@ const Inventory = () => {
             quantity: product.quantity,
             buyingPrice: product.buyingPrice,
             sellingPrice: product.sellingPrice,
-            supplierCompanyName: product.supplierCompanyName
+            supplierCompanyName: product.supplierCompanyName,
+            productImage: formData.productImage
         });
         setSelectedProductId(productId);
         setIsEditMode(true);
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        updateSectionRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
     const handleOpenUpdateDialog = () => {
@@ -294,7 +309,8 @@ const Inventory = () => {
                 quantity: formData.quantity,
                 buyingPrice: formData.buyingPrice,
                 sellingPrice: formData.sellingPrice,
-                supplierCompanyName: formData.supplierCompanyName
+                supplierCompanyName: formData.supplierCompanyName,
+                productImage: formData.productImage
             };
             const response = await productServices.updateProduct(selectedProductId, updatedProduct);
             const updatedProducts = products.map((product) =>
@@ -406,6 +422,7 @@ const Inventory = () => {
                                 <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }}/>
                             )}
                         />
+
                         <TextField
                             fullWidth
                             label="New Stock Quantity"
@@ -427,6 +444,7 @@ const Inventory = () => {
                         <TableHead>
                             <TableRow>
                                 <TableCell>Product ID</TableCell>
+                                <TableCell>Image</TableCell>
                                 <TableCell>Product Name</TableCell>
                                 <TableCell>Category</TableCell>
                                 <TableCell>Quantity</TableCell>
@@ -440,6 +458,15 @@ const Inventory = () => {
                             {filteredProducts.map((product) => (
                                 <TableRow key={product.productId}>
                                     <TableCell>{product.productId}</TableCell>
+                                    <TableCell>
+                                        {product.base64Image && (
+                                            <img
+                                                src={`data:image/jpeg;base64,${product.base64Image}`}
+                                                alt={product.productName}
+                                                style={{ width: "50px", height: "50px", objectFit: "cover" }}
+                                            />
+                                        )}
+                                    </TableCell>
                                     <TableCell>{product.productName}</TableCell>
                                     <TableCell>{product.categoryName}</TableCell>
                                     <TableCell>{product.quantity}</TableCell>
@@ -457,7 +484,7 @@ const Inventory = () => {
                 </TableContainer>
             </Box>
 
-            <Box sx={{ paddingTop: 5 }}>
+            <Box ref={updateSectionRef} sx={{ paddingTop: 5 }}>
                 <Typography variant="h4" gutterBottom sx={{ color: '#0478C0' }}>
                     {isEditMode ? 'Update Product' : 'Add New Product'}
                 </Typography>
@@ -518,6 +545,18 @@ const Inventory = () => {
                         </Grid>
                     </Grid>
                     <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                                const selectedFile = e.target.files[0];
+                                console.log("Selected file:", selectedFile);
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    productImage: selectedFile,
+                                }));
+                            }}
+                        />
                         <Button
                             variant="contained"
                             style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
