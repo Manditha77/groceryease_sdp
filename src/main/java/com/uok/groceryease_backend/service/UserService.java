@@ -34,24 +34,10 @@ public class UserService {
     @Autowired
     private OwnerRepository ownerRepository;
 
-    public UserRegistrationDTO loginCustomer(String username, String password) {
+    public UserRegistrationDTO loginUser(String username, String password) {
         UserAuth userAuth = userAuthRepository.findByUsername(username);
         if (userAuth != null && userAuth.getPassword().equals(password)) {
-            User user = userAuth.getUser();
-            if (user instanceof Customer) {
-                return convertToDTO(user, userAuth);
-            }
-        }
-        return null; // or throw an exception
-    }
-
-    public UserRegistrationDTO loginOwnerOrEmployee(String username, String password) {
-        UserAuth userAuth = userAuthRepository.findByUsername(username);
-        if (userAuth != null && userAuth.getPassword().equals(password)) {
-            User user = userAuth.getUser();
-            if (user instanceof Owner || user instanceof Employee) {
-                return convertToDTO(user, userAuth);
-            }
+            return convertToDTO(userAuth.getUser(), userAuth);
         }
         return null; // or throw an exception
     }

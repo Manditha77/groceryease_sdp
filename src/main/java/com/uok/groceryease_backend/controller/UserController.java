@@ -16,18 +16,9 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @PostMapping("/login/customer")
-    public ResponseEntity<UserRegistrationDTO> loginCustomer(@RequestBody UserRegistrationDTO userDTO) {
-        UserRegistrationDTO authenticatedUser = userService.loginCustomer(userDTO.getUsername(), userDTO.getPassword());
-        if (authenticatedUser != null) {
-            return ResponseEntity.ok(authenticatedUser);
-        }
-        return ResponseEntity.status(401).build(); // Unauthorized
-    }
-
-    @PostMapping("/login/owner-employee")
-    public ResponseEntity<UserRegistrationDTO> loginOwnerOrEmployee(@RequestBody UserRegistrationDTO userDTO) {
-        UserRegistrationDTO authenticatedUser = userService.loginOwnerOrEmployee(userDTO.getUsername(), userDTO.getPassword());
+    @PostMapping("/login")
+    public ResponseEntity<UserRegistrationDTO> login(@RequestBody UserRegistrationDTO userDTO) {
+        UserRegistrationDTO authenticatedUser = userService.loginUser(userDTO.getUsername(), userDTO.getPassword());
         if (authenticatedUser != null) {
             return ResponseEntity.ok(authenticatedUser);
         }
