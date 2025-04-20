@@ -17,7 +17,7 @@ const Login = ({ setIsAuthenticated }) => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const response = await authService.login(username, password);
+            const response = await authService.loginOwnerOrEmployee(username, password);
             localStorage.setItem('username', username); // Store username in local storage
             localStorage.setItem('authToken', response.token); // Store auth token in local storage
             setIsAuthenticated(true);
@@ -43,7 +43,7 @@ const Login = ({ setIsAuthenticated }) => {
     };
 
     return (
-        <Grid container justifyContent="center" alignItems="center" sx={{ height: "90vh", px: 3 }}>
+        <Grid container justifyContent="center" alignItems="center" sx={{ height: "90vh", px: 3, paddingTop: "10vh" }}>
             {/* Error Snackbar */}
             <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
                 <Alert onClose={handleClose} severity="error" sx={{ width: '100%', height: '100%' }}>

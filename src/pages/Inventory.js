@@ -384,7 +384,7 @@ const Inventory = () => {
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Box>
-                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0' }}>
+                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                     Inventory
                 </Typography>
                 <Grid container spacing={2} sx={{ marginBottom: 3 }}>
@@ -452,8 +452,8 @@ const Inventory = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
-                <TableContainer component={Paper}>
-                    <Table>
+                <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                    <Table stickyHeader>
                         <TableHead>
                             <TableRow>
                                 <TableCell>Product ID</TableCell>

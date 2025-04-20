@@ -63,7 +63,7 @@ const Profile = () => {
 
     return (
         <Box sx={{ padding: 4, paddingTop: 7}}>
-            <Typography variant="h4" gutterBottom sx={{color: '#0478C0'}}>
+            <Typography variant="h4" gutterBottom sx={{color: '#0478C0', fontWeight: 'bold'}}>
                 Profile
             </Typography>
             <Divider />

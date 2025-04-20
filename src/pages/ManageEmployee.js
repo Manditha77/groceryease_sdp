@@ -198,7 +198,7 @@ const ManageEmployee = () => {
     return (
         <Box sx={{ padding: 4, paddingTop: 7}}>
             <Box>
-                <Typography variant="h4" gutterBottom sx={{color: '#0478C0'}}>
+                <Typography variant="h4" gutterBottom sx={{color: '#0478C0', fontWeight: 'bold'}}>
                     Manage Employees
                 </Typography>
                 <TableContainer component={Paper}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Box, Typography, Snackbar, Alert, Grid, Card, CardContent, Button } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Box, Typography, Snackbar, Alert, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { ShoppingCart, People, LocalShipping, Report } from '@mui/icons-material';
 import productService from '../services/productServices';
 import authService from '../services/authService';
@@ -9,12 +9,14 @@ const Dashboard = () => {
     const location = useLocation();
     const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
     const [open, setOpen] = useState(!!location.state?.success);
+    const navigate = useNavigate();
 
     // State for dynamic data
     const [inventoryCount, setInventoryCount] = useState(0);
     const [lowStockCount, setLowStockCount] = useState(0);
     const [employeeCount, setEmployeeCount] = useState(0);
     const [supplierCount, setSupplierCount] = useState(0);
+    const [lowStockProducts, setLowStockProducts] = useState([]);
 
     useEffect(() => {
         if (location.state?.success) {
@@ -26,9 +28,11 @@ const Dashboard = () => {
         // Fetch inventory data
         const fetchInventoryData = async () => {
             try {
-                const products = await productService.getAllProducts();
+                const response = await productService.getAllProducts();
+                const products = response.data;
+
                 setInventoryCount(products.length);
-                setLowStockCount(products.filter(product => product.stock < 10).length); // Example threshold
+                setLowStockCount(products.filter(product => product.quantity < 10).length); // Example threshold
             } catch (error) {
                 console.error('Error fetching inventory data:', error);
             }
@@ -37,7 +41,7 @@ const Dashboard = () => {
         // Fetch employee data
         const fetchEmployeeData = async () => {
             try {
-                const employees = await authService.getAllEmployees(); // Assuming this method exists
+                const employees = await authService.getEmployees(); // Assuming this method exists
                 setEmployeeCount(employees.length);
             } catch (error) {
                 console.error('Error fetching employee data:', error);
@@ -47,16 +51,29 @@ const Dashboard = () => {
         // Fetch supplier data
         const fetchSupplierData = async () => {
             try {
-                const suppliers = await authService.getAllSuppliers(); // Assuming this method exists
+                const suppliers = await authService.getSuppliers(); // Assuming this method exists
                 setSupplierCount(suppliers.length);
             } catch (error) {
                 console.error('Error fetching supplier data:', error);
             }
         };
 
+        const fetchLowStockProducts = async () => {
+            try {
+                const response = await productService.getAllProducts();
+                const products = response.data;
+
+                const lowStock = products.filter(product => product.quantity < 10); // Example threshold
+                setLowStockProducts(lowStock);
+            } catch (error) {
+                console.error('Error fetching low stock products:', error);
+            }
+        };
+
         fetchInventoryData();
         fetchEmployeeData();
         fetchSupplierData();
+        fetchLowStockProducts();
     }, []);
 
     const handleClose = () => {
@@ -161,6 +178,7 @@ const Dashboard = () => {
                             variant="contained"
                             startIcon={<ShoppingCart />}
                             sx={{ width: '100%', height: 60, bgcolor: '#1E88E5', color: '#fff', fontWeight: 'bold' }}
+                            onClick={() => navigate('/inventory')}
                         >
                             Add New Product
                         </Button>
@@ -170,6 +188,7 @@ const Dashboard = () => {
                             variant="contained"
                             startIcon={<People />}
                             sx={{ width: '100%', height: 60, bgcolor: '#43A047', color: '#fff', fontWeight: 'bold' }}
+                            onClick={() => navigate('/manage-employees')}
                         >
                             Manage Employees
                         </Button>
@@ -179,11 +198,46 @@ const Dashboard = () => {
                             variant="contained"
                             startIcon={<LocalShipping />}
                             sx={{ width: '100%', height: 60, bgcolor: '#FB8C00', color: '#fff', fontWeight: 'bold' }}
+                            onClick={() => navigate('/manage-suppliers')}
                         >
                             Manage Suppliers
                         </Button>
                     </Grid>
                 </Grid>
+            </Box>
+
+            <Box sx={{ marginTop: 4 }}>
+                <Typography variant="h5" gutterBottom sx={{ color: '#FF6F00', fontWeight: 'bold' }}>
+                    Low Stock Products
+                </Typography>
+                {lowStockProducts.length > 0 ? (
+                    <TableContainer component={Paper}>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Product Name</TableCell>
+                                    <TableCell align="right">Quantity</TableCell>
+                                    <TableCell align="right">Category</TableCell>
+                                    <TableCell align="right">Company</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {lowStockProducts.map((product) => (
+                                    <TableRow key={product.id}>
+                                        <TableCell>{product.productName}</TableCell>
+                                        <TableCell align="right">{product.quantity}</TableCell>
+                                        <TableCell align="right">{product.categoryName}</TableCell>
+                                        <TableCell align="right">{product.supplierCompanyName}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Typography variant="body1" sx={{ color: '#757575' }}>
+                        No products are running low on stock.
+                    </Typography>
+                )}
             </Box>
         </Box>
     );
