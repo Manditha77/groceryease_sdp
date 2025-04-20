@@ -1,8 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Autocomplete } from "@mui/material";
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import defaultImage from '../images/unnamed.jpg'
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
 import authService from "../services/authService";
+import {Delete} from "@mui/icons-material";
 
 const Inventory = () => {
     const [products, setProducts] = useState([]);
@@ -29,7 +34,7 @@ const Inventory = () => {
         buyingPrice: '',
         sellingPrice: '',
         supplierCompanyName: '',
-        productImage: null
+        image: defaultImage,
     });
     const [formDataCategory, setFormDataCategory] = useState({
         newCategoryName: ''
@@ -44,6 +49,8 @@ const Inventory = () => {
     const [snackbarErrorOpen, setSnackbarErrorOpen] = useState(false);
     const [snackbarErrorMessage, setSnackbarErrorMessage] = useState('');
     const [isEditMode, setIsEditMode] = useState(false);
+    const [openImageDialog, setOpenImageDialog] = useState(false);
+    const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
         productServices.getAllProducts().then(response => {
@@ -137,6 +144,20 @@ const Inventory = () => {
         });
     }
 
+    const handleFileChange = (e) => {
+        setFormData(prev => ({ ...prev, image: e.target.files[0] }));
+    };
+
+    const handleImageClick = (image) => {
+        setSelectedImage(image);
+        setOpenImageDialog(true);
+    };
+
+    const handleCloseImageDialog = () => {
+        setOpenImageDialog(false);
+        setSelectedImage(null);
+    };
+
     const handleOpenDeleteDialog = (productId) => {
         setSelectedProductId(productId);
         setDeleteDialogOpen(true);
@@ -170,8 +191,8 @@ const Inventory = () => {
     };
 
     const handleConfirmRegisterProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice || !formData.productImage) {
-            setSnackbarErrorMessage('Please fill in all required fields, including an image');
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice ) {
+            setSnackbarErrorMessage('Please fill in all required fields');
             setSnackbarErrorOpen(true);
             return;
         }
@@ -212,26 +233,8 @@ const Inventory = () => {
         }
 
         try {
-            const formDataToSend = new FormData();
-            formDataToSend.append("productName", formData.productName);
-            formDataToSend.append("categoryName", formData.categoryName);
-            const quantity = parseInt(formData.quantity);
-            formDataToSend.append("quantity", isNaN(quantity) ? 0 : quantity);
-
-            const buyingPrice = parseFloat(formData.buyingPrice);
-            formDataToSend.append("buyingPrice", isNaN(buyingPrice) ? 0.0 : buyingPrice);
-
-            const sellingPrice = parseFloat(formData.sellingPrice);
-            formDataToSend.append("sellingPrice", isNaN(sellingPrice) ? 0.0 : sellingPrice);
-
-            formDataToSend.append("supplierCompanyName", formData.supplierCompanyName);
-            formDataToSend.append("image", formData.productImage);
-
-            console.log("formData.productImage:", formData.productImage);
-
-
-            const response = await productServices.addProduct(formDataToSend); // Send FormData to backend
-            setProducts([...products, response.data]);
+            const response = await productServices.addProduct(formData); // Send FormData to backend
+            setProducts([...products, response]);
             setSnackbarMessage('Product added successfully');
             setSnackbarOpen(true);
             setFormData({
@@ -241,7 +244,7 @@ const Inventory = () => {
                 buyingPrice: '',
                 sellingPrice: '',
                 supplierCompanyName: '',
-                productImage: null
+                image: defaultImage
             });
         } catch (error) {
             console.error('Error adding product:', error);
@@ -263,7 +266,7 @@ const Inventory = () => {
             buyingPrice: product.buyingPrice,
             sellingPrice: product.sellingPrice,
             supplierCompanyName: product.supplierCompanyName,
-            productImage: formData.productImage
+            productImage: formData.image
         });
         setSelectedProductId(productId);
         setIsEditMode(true);
@@ -314,11 +317,20 @@ const Inventory = () => {
             };
             const response = await productServices.updateProduct(selectedProductId, updatedProduct);
             const updatedProducts = products.map((product) =>
-                product.productId === selectedProductId ? response.data : product
+                product.productId === selectedProductId ? response : product
             );
             setProducts(updatedProducts);
             setSnackbarMessage('Product updated successfully');
             setSnackbarOpen(true);
+            setFormData({
+                productName: '',
+                categoryName: '',
+                quantity: '',
+                buyingPrice: '',
+                sellingPrice: '',
+                supplierCompanyName: '',
+                image: defaultImage
+            });
         } catch (error) {
             console.error('Error updating product:', error);
         } finally {
@@ -401,6 +413,7 @@ const Inventory = () => {
                             variant="contained"
                             onClick={handleOpenRestockDialog}
                             sx={{ bgcolor: "#00ffff", textTransform: "none", color: "black" }}
+                            startIcon={<AddCircleIcon/>}
                         >
                             Add Stock
                         </Button>
@@ -463,7 +476,18 @@ const Inventory = () => {
                                             <img
                                                 src={`data:image/jpeg;base64,${product.base64Image}`}
                                                 alt={product.productName}
-                                                style={{ width: "50px", height: "50px", objectFit: "cover" }}
+                                                style={{
+                                                    width: "60px",
+                                                    height: "60px",
+                                                    objectFit: "cover",
+                                                    border: "1px solid #ccc",
+                                                    borderRadius: "4px",
+                                                    padding: "2px",
+                                                    backgroundColor: "#f9f9f9",
+                                                    cursor: "pointer",
+                                                }}
+                                                onClick={() => handleImageClick(product.base64Image)}
+                                                title="Click to view"
                                             />
                                         )}
                                     </TableCell>
@@ -474,8 +498,8 @@ const Inventory = () => {
                                     <TableCell>{product.sellingPrice}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8 }} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateProduct(product.productId)}>Edit</Button>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(product.productId)}>Delete</Button>
+                                        <Button variant="contained" style={{ marginRight: 8 }} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateProduct(product.productId)} startIcon={<EditIcon/>}>Edit</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(product.productId)} startIcon={<DeleteIcon/>}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -483,6 +507,22 @@ const Inventory = () => {
                     </Table>
                 </TableContainer>
             </Box>
+
+            <Dialog open={openImageDialog} onClose={handleCloseImageDialog} maxWidth="md">
+                <DialogContent>
+                    {selectedImage && (
+                        <img
+                            src={`data:image/jpeg;base64,${selectedImage}`}
+                            alt="Product"
+                            style={{
+                                width: "100%",
+                                height: "auto",
+                                objectFit: "contain",
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
 
             <Box ref={updateSectionRef} sx={{ paddingTop: 5 }}>
                 <Typography variant="h4" gutterBottom sx={{ color: '#0478C0' }}>
@@ -543,20 +583,55 @@ const Inventory = () => {
                                 </Grid>
                             </Grid>
                         </Grid>
+
+                        <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                                Product Image
+                            </Typography>
+                            <Box
+                                sx={{
+                                    width: '200px',
+                                    height: '200px',
+                                    border: '2px dashed #ccc',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    backgroundColor: '#f9f9f9',
+                                    position: 'relative', // Enable absolute positioning for the image
+                                }}
+                                onClick={() => document.getElementById('fileInput').click()}
+                            >
+                                {!formData.image && (
+                                    <Typography variant="h4" sx={{ color: '#ccc' }}>+</Typography>
+                                )}
+                                <input
+                                    id="fileInput"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                    style={{ display: 'none' }}
+                                />
+                                {formData.image && (
+                                    <img
+                                        src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image}
+                                        alt="Preview"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'cover',
+                                            borderRadius: '8px',
+                                        }}
+                                    />
+                                )}
+                            </Box>
+                        </Grid>
                     </Grid>
                     <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                                const selectedFile = e.target.files[0];
-                                console.log("Selected file:", selectedFile);
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    productImage: selectedFile,
-                                }));
-                            }}
-                        />
                         <Button
                             variant="contained"
                             style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
@@ -588,7 +663,7 @@ const Inventory = () => {
                                     <TableCell>{category.categoryId}</TableCell>
                                     <TableCell>{category.categoryName}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }}>Delete</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} startIcon={<DeleteIcon/>}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
