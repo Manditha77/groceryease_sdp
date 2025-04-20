@@ -17,13 +17,20 @@ const Login = ({ setIsAuthenticated }) => {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const response = await authService.loginOwnerOrEmployee(username, password);
-            localStorage.setItem('username', username); // Store username in local storage
-            localStorage.setItem('authToken', response.token); // Store auth token in local storage
+            const response = await authService.login(username, password);
+            localStorage.setItem('username', username);
+            localStorage.setItem('authToken', 'dummy-token'); // Replace with actual token if generated
+            localStorage.setItem('userType', response.userType); // Store userType (e.g., "CUSTOMER", "OWNER", "EMPLOYEE")
             setIsAuthenticated(true);
 
-            navigate('/dashboard', { state : { success: 'Logged in successfully'} }); // Navigate to the sidebar page
-
+            // Redirect based on userType
+            if (response.userType === 'CUSTOMER') {
+                navigate('/product-list', { state: { success: 'Logged in successfully' } });
+            } else if (response.userType === 'OWNER' || response.userType === 'EMPLOYEE') {
+                navigate('/dashboard', { state: { success: 'Logged in successfully' } });
+            } else {
+                throw new Error('Unknown user type');
+            }
         } catch (error) {
             setError('Login failed. Please check your credentials and try again.');
             setOpen(true);

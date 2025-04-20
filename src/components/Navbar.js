@@ -1,17 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
+import Badge from '@mui/material/Badge';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { styled } from '@mui/system';
-import {AccountCircle} from "@mui/icons-material";
-import {Dialog,
+import { AccountCircle } from '@mui/icons-material';
+import {
+    Dialog,
     DialogActions,
     DialogContent,
     DialogContentText,
-    DialogTitle,} from "@mui/material";
+    DialogTitle,
+} from '@mui/material';
+import { CartContext } from '../CartContext';
 
 const Title = styled(Typography)({
     flexGrow: 1,
@@ -29,6 +35,10 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
     const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+    const userType = localStorage.getItem('userType');
+    const { cartItems } = useContext(CartContext);
+
+    const cartItemCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
     useEffect(() => {
         const storedUsername = localStorage.getItem('username');
@@ -39,36 +49,67 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
 
     const handleOpenDialogLogout = () => {
         setLogoutDialogOpen(true);
-    }
+    };
 
     const handleCloseDialogLogout = () => {
         setLogoutDialogOpen(false);
-    }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('username');
         localStorage.removeItem('authToken');
+        localStorage.removeItem('userType');
         setUsername('');
-        setIsAuthenticated(false); // Update state immediately
+        setIsAuthenticated(false);
         setLogoutDialogOpen(false);
-        navigate('/login'); // Navigate to login page
+        navigate('/login');
     };
 
     return (
         <AppBar position="fixed" sx={{ backgroundColor: '#53F47E', width: '100%' }}>
-        <Toolbar>
-                <Title variant="h6" color={"black"}>
+            <Toolbar>
+                <Title variant="h6" color="black">
                     GroceryEase
                 </Title>
                 {isAuthenticated ? (
                     <>
-                        <Typography variant="h6" color="black" sx={{ marginRight: 2 }}>
+                        {userType === 'CUSTOMER' && (
+                            <>
+                                <Button color="inherit" sx={{ textTransform: 'none' }}>
+                                    <StyledLink
+                                        to="/product-list"
+                                        active={location.pathname === '/product-list'}
+                                    >
+                                        Shop
+                                    </StyledLink>
+                                </Button>
+                                <IconButton
+                                    component={Link}
+                                    to="/cart"
+                                    color="inherit"
+                                    sx={{ color: 'black', marginRight: 2 }}
+                                >
+                                    <Badge badgeContent={cartItemCount} color="error">
+                                        <ShoppingCartIcon />
+                                    </Badge>
+                                </IconButton>
+                            </>
+                        )}
+                        <Typography
+                            variant="h6"
+                            color="black"
+                            sx={{ marginRight: 2 }}
+                        >
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                 <AccountCircle sx={{ marginRight: 0.2, fontSize: 35 }} />
                                 {username}
                             </Box>
                         </Typography>
-                        <Button color="inherit" sx={{ textTransform: 'none', color: 'black', fontSize: 20 }} onClick={handleOpenDialogLogout}>
+                        <Button
+                            color="inherit"
+                            sx={{ textTransform: 'none', color: 'black', fontSize: 20 }}
+                            onClick={handleOpenDialogLogout}
+                        >
                             Logout
                         </Button>
                     </>

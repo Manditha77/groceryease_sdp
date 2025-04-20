@@ -4,14 +4,9 @@ import axios from 'axios';
 const API_URL_USER = 'http://localhost:8080/api/auth';
 const API_URL_SUPPLIER = 'http://localhost:8080/api/supplier';
 
-const loginCustomer = async (username, password) => {
-    const response = await axios.post(`${API_URL_USER}/login/customer`, { username, password });
-    return response.data; // Assuming the response contains user details and a token
-};
-
-const loginOwnerOrEmployee = async (username, password) => {
-    const response = await axios.post(`${API_URL_USER}/login/owner-employee`, { username, password });
-    return response.data; // Assuming the response contains user details and a token
+const login = async (username, password) => {
+    const response = await axios.post(`${API_URL_USER}/login`, { username, password });
+    return response.data; // Response includes user details and userType
 };
 
 const getEmployees = async () => {
@@ -118,8 +113,7 @@ const deleteSupplier = async (userId) => {
 }
 
 export default {
-    loginCustomer,
-    loginOwnerOrEmployee,
+    login,
     register,
     getEmployees,
     deleteUser,
