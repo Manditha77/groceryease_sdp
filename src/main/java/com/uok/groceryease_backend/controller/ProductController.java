@@ -3,6 +3,7 @@ package com.uok.groceryease_backend.controller;
 import com.uok.groceryease_backend.DTO.ProductDTO;
 import com.uok.groceryease_backend.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,7 +36,15 @@ public class ProductController {
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
-        productDTO.setImage(image.getBytes()); // Convert image to byte array
+
+        if (image != null && !image.isEmpty()) {
+            productDTO.setImage(image.getBytes());
+        } else {
+            // Load default image from resources or keep as null
+            ClassPathResource defaultImage = new ClassPathResource("static/images/unnamed.jpg");
+            byte[] defaultImageBytes = defaultImage.getInputStream().readAllBytes();
+            productDTO.setImage(defaultImageBytes);
+        } // Convert image to byte array
 
         ProductDTO createdProduct = productService.addProduct(productDTO);
         return ResponseEntity.ok(createdProduct);
@@ -65,8 +74,14 @@ public class ProductController {
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
-        if (image != null) {
-            productDTO.setImage(image.getBytes()); // Update image if provided
+
+        if (image != null && !image.isEmpty()) {
+            productDTO.setImage(image.getBytes());
+        } else {
+            // Load default image from resources or keep as null
+            ClassPathResource defaultImage = new ClassPathResource("static/images/unnamed.jpg");
+            byte[] defaultImageBytes = defaultImage.getInputStream().readAllBytes();
+            productDTO.setImage(defaultImageBytes);
         }
 
         ProductDTO updatedProduct = productService.updateProduct(productId, productDTO);

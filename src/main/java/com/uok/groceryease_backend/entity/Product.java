@@ -42,6 +42,6 @@ public class Product {
     private Supplier supplier;
 
     @Lob
-    @Column(name = "image", columnDefinition = "BLOB")
+    @Column(name = "image", columnDefinition = "LONGBLOB")
     private byte[] image;  // Field to store the image as a BLOB
 }
