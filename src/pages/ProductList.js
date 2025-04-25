@@ -22,22 +22,19 @@ function ProductList() {
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
-    const { addToCart } = useContext(CartContext);
+    const { addToCart, cartItems } = useContext(CartContext);
 
-    // Fetch products on mount
     useEffect(() => {
         productServices.getAllProducts().then((response) => {
             setProducts(response.data);
-            setFilteredProducts(response.data); // Initialize filtered products
+            setFilteredProducts(response.data);
         }).catch((error) => {
             console.error('Error fetching products:', error);
         });
     }, []);
 
-    // Extract unique categories from products
     const categories = ['All', ...new Set(products.map(product => product.categoryName))];
 
-    // Filter products based on search term and category
     useEffect(() => {
         let filtered = products;
         if (searchTerm) {
@@ -51,10 +48,15 @@ function ProductList() {
         setFilteredProducts(filtered);
     }, [searchTerm, selectedCategory, products]);
 
+    const getCartQuantity = (productId) => {
+        const cartItem = cartItems.find(item => item.productId === productId);
+        return cartItem ? cartItem.quantity : 0;
+    };
+
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
-                Shop Groceries
+                Pre-Order Groceries
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mb: 4, alignItems: 'center' }}>
                 <FormControl sx={{ width: '30%' }}>
@@ -79,44 +81,58 @@ function ProductList() {
             </Box>
             <Divider sx={{ mb: 4 }} />
             <Grid container spacing={3}>
-                {filteredProducts.map((product) => (
-                    <Grid item xs={12} sm={6} md={4} key={product.productId}>
-                        <Card sx={{ boxShadow: 3, borderRadius: 2 }}>
-                            {product.base64Image && (
-                                <CardMedia
-                                    component="img"
-                                    height="160"
-                                    image={`data:image/jpeg;base64,${product.base64Image}`}
-                                    alt={product.productName}
-                                    sx={{ objectFit: 'cover' }}
-                                />
-                            )}
-                            <CardContent>
-                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                    {product.productName}
-                                </Typography>
-                                <Typography variant="body2" color="textSecondary">
-                                    {product.categoryName}
-                                </Typography>
-                                <Typography variant="h6" sx={{ color: '#0478C0', mt: 1 }}>
-                                    Rs.{product.sellingPrice}
-                                </Typography>
-                                <Typography variant="body2" color="textSecondary">
-                                    In stock: {product.quantity}
-                                </Typography>
-                                <Button
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={() => addToCart(product)}
-                                    disabled={product.quantity === 0}
-                                    sx={{ mt: 2, width: '100%' }}
-                                >
-                                    {product.quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                ))}
+                {filteredProducts.map((product) => {
+                    const cartQuantity = getCartQuantity(product.productId);
+                    const canAddToCart = cartQuantity < product.quantity;
+
+                    return (
+                        <Grid item xs={12} sm={6} md={4} key={product.productId}>
+                            <Card sx={{ boxShadow: 3, borderRadius: 2 }}>
+                                {product.base64Image && (
+                                    <CardMedia
+                                        component="img"
+                                        height="160"
+                                        image={`data:image/jpeg;base64,${product.base64Image}`}
+                                        alt={product.productName}
+                                        sx={{ objectFit: 'cover' }}
+                                    />
+                                )}
+                                <CardContent>
+                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                        {product.productName}
+                                    </Typography>
+                                    <Typography variant="body2" color="textSecondary">
+                                        {product.categoryName}
+                                    </Typography>
+                                    <Typography variant="h6" sx={{ color: '#0478C0', mt: 1 }}>
+                                        Rs.{product.sellingPrice}
+                                    </Typography>
+                                    <Typography variant="body2" color="textSecondary">
+                                        In stock: {product.quantity}
+                                    </Typography>
+                                    {cartQuantity > 0 && (
+                                        <Typography variant="body2" color="textSecondary">
+                                            In cart: {cartQuantity}
+                                        </Typography>
+                                    )}
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={() => addToCart(product)}
+                                        disabled={product.quantity === 0 || !canAddToCart}
+                                        sx={{ mt: 2, width: '100%' }}
+                                    >
+                                        {product.quantity === 0
+                                            ? 'Out of Stock'
+                                            : !canAddToCart
+                                                ? 'Stock Limit Reached'
+                                                : 'Add to Cart'}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    );
+                })}
             </Grid>
         </Box>
     );

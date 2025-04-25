@@ -1,91 +1,283 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Box, Typography, Snackbar, Alert, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import {
+    Box,
+    Typography,
+    Snackbar,
+    Alert,
+    Grid,
+    Card,
+    CardContent,
+    Button,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Slide,
+} from '@mui/material';
 import { ShoppingCart, People, LocalShipping, Report } from '@mui/icons-material';
 import productService from '../services/productServices';
 import authService from '../services/authService';
+import orderServices from '../services/orderServices';
+import webSocketService from '../services/webSocketService';
 
 const Dashboard = () => {
     const location = useLocation();
     const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
     const [open, setOpen] = useState(!!location.state?.success);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [updateMessage, setUpdateMessage] = useState('');
+    const [openUpdateSnackbar, setOpenUpdateSnackbar] = useState(false);
+    const [updateSeverity, setUpdateSeverity] = useState('success');
+    const [newOrderNotification, setNewOrderNotification] = useState(null);
+    const [openNewOrderSnackbar, setOpenNewOrderSnackbar] = useState(false);
     const navigate = useNavigate();
 
-    // State for dynamic data
     const [inventoryCount, setInventoryCount] = useState(0);
     const [lowStockCount, setLowStockCount] = useState(0);
     const [employeeCount, setEmployeeCount] = useState(0);
     const [supplierCount, setSupplierCount] = useState(0);
     const [lowStockProducts, setLowStockProducts] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+    const [newStatus, setNewStatus] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    // Initialize the audio object for the notification sound
+    const notificationSound = new Audio('/sounds/notification.wav');
 
     useEffect(() => {
         if (location.state?.success) {
-            setTimeout(() => setOpen(false), 3000); // Hide Snackbar after 3 seconds
+            setTimeout(() => setOpen(false), 3000);
         }
     }, [location.state]);
 
+    const fetchInventoryData = async () => {
+        try {
+            const response = await productService.getAllProducts();
+            const products = response.data;
+            setInventoryCount(products.length);
+            setLowStockCount(products.filter(product => product.quantity < 10).length);
+        } catch (error) {
+            console.error('Error fetching inventory data:', error);
+        }
+    };
+
+    const fetchEmployeeData = async () => {
+        try {
+            const employees = await authService.getEmployees();
+            setEmployeeCount(employees.length);
+        } catch (error) {
+            console.error('Error fetching employee data:', error);
+        }
+    };
+
+    const fetchSupplierData = async () => {
+        try {
+            const suppliers = await authService.getSuppliers();
+            setSupplierCount(suppliers.length);
+        } catch (error) {
+            console.error('Error fetching supplier data:', error);
+        }
+    };
+
+    const fetchLowStockProducts = async () => {
+        try {
+            const response = await productService.getAllProducts();
+            const products = response.data;
+            const lowStock = products.filter(product => product.quantity < 10);
+            setLowStockProducts(lowStock);
+        } catch (error) {
+            console.error('Error fetching low stock products:', error);
+        }
+    };
+
+    const fetchOrders = async () => {
+        try {
+            const response = await orderServices.getAllOrders();
+            console.log('Fetched orders response:', response);
+            const fetchedOrders = response.data;
+            if (Array.isArray(fetchedOrders)) {
+                setOrders(fetchedOrders);
+            } else {
+                console.error('Fetched orders is not an array:', fetchedOrders);
+                setOrders([]);
+                setErrorMessage('Failed to load orders. Unexpected response format.');
+            }
+        } catch (error) {
+            console.error('Error fetching orders:', error);
+            setOrders([]);
+            const message = error.response?.data?.message || error.message || 'Failed to load orders. Please try again later.';
+            setErrorMessage(message);
+        }
+    };
+
+    const fetchProducts = async () => {
+        try {
+            const response = await productService.getAllProducts();
+            const fetchedProducts = response.data;
+            if (Array.isArray(fetchedProducts)) {
+                setProducts(fetchedProducts);
+            } else {
+                console.error('Fetched products is not an array:', fetchedProducts);
+                setProducts([]);
+            }
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            setProducts([]);
+        }
+    };
+
     useEffect(() => {
-        // Fetch inventory data
-        const fetchInventoryData = async () => {
-            try {
-                const response = await productService.getAllProducts();
-                const products = response.data;
-
-                setInventoryCount(products.length);
-                setLowStockCount(products.filter(product => product.quantity < 10).length); // Example threshold
-            } catch (error) {
-                console.error('Error fetching inventory data:', error);
-            }
-        };
-
-        // Fetch employee data
-        const fetchEmployeeData = async () => {
-            try {
-                const employees = await authService.getEmployees(); // Assuming this method exists
-                setEmployeeCount(employees.length);
-            } catch (error) {
-                console.error('Error fetching employee data:', error);
-            }
-        };
-
-        // Fetch supplier data
-        const fetchSupplierData = async () => {
-            try {
-                const suppliers = await authService.getSuppliers(); // Assuming this method exists
-                setSupplierCount(suppliers.length);
-            } catch (error) {
-                console.error('Error fetching supplier data:', error);
-            }
-        };
-
-        const fetchLowStockProducts = async () => {
-            try {
-                const response = await productService.getAllProducts();
-                const products = response.data;
-
-                const lowStock = products.filter(product => product.quantity < 10); // Example threshold
-                setLowStockProducts(lowStock);
-            } catch (error) {
-                console.error('Error fetching low stock products:', error);
-            }
-        };
-
         fetchInventoryData();
         fetchEmployeeData();
         fetchSupplierData();
         fetchLowStockProducts();
+        fetchOrders();
+        fetchProducts();
+
+        webSocketService.connect((newOrder) => {
+            setOrders((prevOrders) => [newOrder, ...prevOrders]);
+            setNewOrderNotification(newOrder);
+            setOpenNewOrderSnackbar(true);
+        });
+
+        return () => {
+            webSocketService.disconnect();
+        };
     }, []);
+
+    // Play the notification sound when a new order notification is shown
+    useEffect(() => {
+        if (openNewOrderSnackbar) {
+            notificationSound.play().catch((error) => {
+                console.error('Error playing notification sound:', error);
+            });
+        }
+    }, [openNewOrderSnackbar]);
 
     const handleClose = () => {
         setOpen(false);
     };
 
+    const handleUpdateSnackbarClose = () => {
+        setOpenUpdateSnackbar(false);
+    };
+
+    const handleNewOrderSnackbarClose = () => {
+        setOpenNewOrderSnackbar(false);
+        setNewOrderNotification(null);
+    };
+
+    const handleOrderClick = (order) => {
+        setSelectedOrder(order);
+        setNewStatus(order.status);
+        setOrderDialogOpen(true);
+    };
+
+    const handleOrderDialogClose = () => {
+        setOrderDialogOpen(false);
+        setSelectedOrder(null);
+        setNewStatus('');
+    };
+
+    const handleStatusChange = (event) => {
+        setNewStatus(event.target.value);
+    };
+
+    const handleStatusUpdate = async () => {
+        if (!selectedOrder || !newStatus) return;
+
+        setIsUpdating(true);
+        try {
+            const response = await orderServices.updateOrderStatus(selectedOrder.orderId, newStatus);
+            console.log('Status update response:', response.data);
+
+            setOrders(orders.map(order =>
+                order.orderId === selectedOrder.orderId ? { ...order, status: newStatus } : order
+            ));
+
+            setSelectedOrder({ ...selectedOrder, status: newStatus });
+
+            await fetchProducts();
+            await fetchLowStockProducts();
+            await fetchInventoryData();
+
+            const warnings = response.data.warnings || [];
+            if (warnings.length > 0) {
+                setUpdateMessage('Order status updated, but some inventory adjustments failed:\n' + warnings.join('\n'));
+                setUpdateSeverity('warning');
+            } else {
+                setUpdateMessage('Order status updated successfully!');
+                setUpdateSeverity('success');
+            }
+            setOpenUpdateSnackbar(true);
+        } catch (error) {
+            console.error('Error updating order status:', error);
+            console.error('Error response:', error.response?.data);
+            const message = error.response?.data?.message || error.message || 'Failed to update order status. Please try again.';
+            setUpdateMessage(message);
+            setUpdateSeverity('error');
+            setOpenUpdateSnackbar(true);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const getProductName = (productId) => {
+        const product = products.find(p => p.productId === productId);
+        return product ? product.productName : `Product ID: ${productId} (Not Found)`;
+    };
+
+    const TransitionRight = (props) => {
+        return <Slide {...props} direction="left" />;
+    };
+
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
-            {/* Success Snackbar */}
             <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
                 <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
                     {successMessage}
+                </Alert>
+            </Snackbar>
+
+            <Snackbar
+                open={openUpdateSnackbar}
+                autoHideDuration={6000}
+                onClose={handleUpdateSnackbarClose}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert onClose={handleUpdateSnackbarClose} severity={updateSeverity} sx={{ width: '100%' }}>
+                    {updateMessage}
+                </Alert>
+            </Snackbar>
+
+            <Snackbar
+                open={openNewOrderSnackbar}
+                autoHideDuration={6000}
+                onClose={handleNewOrderSnackbarClose}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                TransitionComponent={TransitionRight}
+            >
+                <Alert
+                    onClose={handleNewOrderSnackbarClose}
+                    severity="info"
+                    sx={{ width: '100%', bgcolor: '#0288d1', color: '#fff' }}
+                >
+                    New Order Received! Order ID: {newOrderNotification?.orderId} from {newOrderNotification?.customerName}
                 </Alert>
             </Snackbar>
 
@@ -93,9 +285,7 @@ const Dashboard = () => {
                 Dashboard
             </Typography>
 
-            {/* Grid Layout */}
             <Grid container spacing={3}>
-                {/* Inventory Overview */}
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
                         <CardContent>
@@ -115,7 +305,6 @@ const Dashboard = () => {
                     </Card>
                 </Grid>
 
-                {/* Employee Overview */}
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#E8F5E9', borderRadius: 2 }}>
                         <CardContent>
@@ -132,7 +321,6 @@ const Dashboard = () => {
                     </Card>
                 </Grid>
 
-                {/* Supplier Overview */}
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#FFF3E0', borderRadius: 2 }}>
                         <CardContent>
@@ -149,7 +337,6 @@ const Dashboard = () => {
                     </Card>
                 </Grid>
 
-                {/* Reports */}
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#FCE4EC', borderRadius: 2 }}>
                         <CardContent>
@@ -167,7 +354,6 @@ const Dashboard = () => {
                 </Grid>
             </Grid>
 
-            {/* Quick Actions */}
             <Box sx={{ marginTop: 4 }}>
                 <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                     Quick Actions
@@ -207,6 +393,53 @@ const Dashboard = () => {
             </Box>
 
             <Box sx={{ marginTop: 4 }}>
+                <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
+                    Pre-Orders
+                </Typography>
+                {errorMessage && (
+                    <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
+                        {errorMessage}
+                    </Typography>
+                )}
+                {Array.isArray(orders) && orders.length > 0 ? (
+                    <TableContainer component={Paper}>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Order ID</TableCell>
+                                    <TableCell>Customer Name</TableCell>
+                                    <TableCell>Payment Method</TableCell>
+                                    <TableCell>Total Amount</TableCell>
+                                    <TableCell>Status</TableCell>
+                                    <TableCell>Order Date</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {orders.map((order) => (
+                                    <TableRow
+                                        key={order.orderId}
+                                        onClick={() => handleOrderClick(order)}
+                                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }}
+                                    >
+                                        <TableCell>{order.orderId}</TableCell>
+                                        <TableCell>{order.customerName}</TableCell>
+                                        <TableCell>{order.paymentMethod}</TableCell>
+                                        <TableCell>Rs.{order.totalAmount.toFixed(2)}</TableCell>
+                                        <TableCell>{order.status}</TableCell>
+                                        <TableCell>{new Date(order.orderDate).toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Typography variant="body1" sx={{ color: '#757575' }}>
+                        No pre-orders available.
+                    </Typography>
+                )}
+            </Box>
+
+            <Box sx={{ marginTop: 4 }}>
                 <Typography variant="h5" gutterBottom sx={{ color: '#FF6F00', fontWeight: 'bold' }}>
                     Low Stock Products
                 </Typography>
@@ -239,6 +472,71 @@ const Dashboard = () => {
                     </Typography>
                 )}
             </Box>
+
+            <Dialog open={orderDialogOpen} onClose={handleOrderDialogClose} maxWidth="md" fullWidth>
+                <DialogTitle>Order Details - Order ID: {selectedOrder?.orderId}</DialogTitle>
+                <DialogContent>
+                    {selectedOrder && (
+                        <Box>
+                            <Typography variant="h6">Customer Name: {selectedOrder.customerName}</Typography>
+                            <Typography variant="body1">Payment Method: {selectedOrder.paymentMethod}</Typography>
+                            <Typography variant="body1">Total Amount: Rs.{selectedOrder.totalAmount.toFixed(2)}</Typography>
+                            <Typography variant="body1">Order Date: {new Date(selectedOrder.orderDate).toLocaleString()}</Typography>
+                            <Box sx={{ mt: 2, mb: 2 }}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Status</InputLabel>
+                                    <Select
+                                        value={newStatus}
+                                        onChange={handleStatusChange}
+                                        label="Status"
+                                    >
+                                        <MenuItem value="PENDING">Pending</MenuItem>
+                                        <MenuItem value="PROCESSING">Processing</MenuItem>
+                                        <MenuItem value="COMPLETED">Completed</MenuItem>
+                                        <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Box>
+                            <Typography variant="h6" sx={{ mt: 2 }}>Items:</Typography>
+                            <TableContainer component={Paper}>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Product</TableCell>
+                                            <TableCell>Quantity</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {selectedOrder.items && Array.isArray(selectedOrder.items) ? (
+                                            selectedOrder.items.map((item) => (
+                                                <TableRow key={item.id}>
+                                                    <TableCell>{getProductName(item.productId)}</TableCell>
+                                                    <TableCell>{item.quantity}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={2}>No items available.</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleOrderDialogClose} disabled={isUpdating}>Close</Button>
+                    <Button
+                        onClick={handleStatusUpdate}
+                        color="primary"
+                        variant="contained"
+                        disabled={newStatus === selectedOrder?.status || isUpdating}
+                    >
+                        {isUpdating ? 'Saving...' : 'Save Status'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };
