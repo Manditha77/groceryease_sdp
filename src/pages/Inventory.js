@@ -3,7 +3,7 @@ import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
-import defaultImage from '../images/unnamed.jpg'
+import defaultImage from '../images/unnamed.jpg';
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
 import authService from "../services/authService";
@@ -12,7 +12,7 @@ import {Delete} from "@mui/icons-material";
 const Inventory = () => {
     const [products, setProducts] = useState([]);
     const [searchValue, setSearchValue] = useState("");
-    const [filterType, setFilterType] = useState("productName"); // Default filter type
+    const [filterType, setFilterType] = useState("productName");
 
     const filterOptions = [
         { label: "Product Name", value: "productName" },
@@ -22,9 +22,14 @@ const Inventory = () => {
         { label: "Selling Price", value: "sellingPrice" },
         { label: "Supplier", value: "supplierCompanyName" },
     ];
+
     const [restockDialogOpen, setRestockDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
+    const [batches, setBatches] = useState([]);
+    const [selectedBatch, setSelectedBatch] = useState(null);
     const [newStock, setNewStock] = useState("");
+    const [newBuyingPrice, setNewBuyingPrice] = useState("");
+    const [newSellingPrice, setNewSellingPrice] = useState("");
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
     const [formData, setFormData] = useState({
@@ -43,6 +48,8 @@ const Inventory = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
     const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+    const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+    const [categoryDeleteDialogOpen, setCategoryDeleteDialogOpen] = useState(false);
     const [categoryRegisterDialogOpen, setCategoryRegisterDialogOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -53,62 +60,77 @@ const Inventory = () => {
     const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
-        productServices.getAllProducts().then(response => {
-            setProducts(response.data);
-        });
+        fetchProducts();
     }, []);
+
+    const fetchProducts = async () => {
+        try {
+            const response = await productServices.getAllProducts();
+            setProducts(response.data);
+        } catch (error) {
+            console.error("Error fetching products:", error);
+        }
+    };
 
     const filteredProducts = products.filter((product) => {
         const filterValue = product[filterType]?.toString().toLowerCase() || "";
-
         if (["quantity", "buyingPrice", "sellingPrice"].includes(filterType)) {
-            // For numeric fields, match exact value
             return product[filterType]?.toString() === searchValue;
         }
-
-        // For other fields, use partial match
         return filterValue.includes(searchValue.toLowerCase());
     });
 
-    const handleOpenRestockDialog = () => {
+    const handleOpenRestockDialog = async (product) => {
+        setSelectedProduct(product);
+        try {
+            const response = await productServices.getProductBatches(product.productId);
+            setBatches(response.data);
+        } catch (error) {
+            console.error("Error fetching batches:", error);
+            setBatches([]);
+        }
         setRestockDialogOpen(true);
     };
 
     const handleCloseRestockDialog = () => {
         setRestockDialogOpen(false);
         setSelectedProduct(null);
+        setSelectedBatch(null);
+        setBatches([]);
         setNewStock("");
+        setNewBuyingPrice("");
+        setNewSellingPrice("");
     };
 
     const handleRestock = async () => {
         if (!selectedProduct || !newStock || isNaN(newStock) || newStock <= 0) {
-            setSnackbarMessage("Please select a product and enter a valid stock quantity");
-            setSnackbarOpen(true);
+            setSnackbarErrorMessage("Please enter a valid stock quantity");
+            setSnackbarErrorOpen(true);
+            return;
+        }
+
+        if (!selectedBatch && (!newBuyingPrice || !newSellingPrice || newBuyingPrice <= 0 || newSellingPrice <= 0)) {
+            setSnackbarErrorMessage("Please enter valid buying and selling prices for a new batch");
+            setSnackbarErrorOpen(true);
             return;
         }
 
         try {
-            const updatedProduct = {
-                ...selectedProduct,
-                quantity: selectedProduct.quantity + parseInt(newStock, 10),
-            };
-
-            // Update the product in the backend
-            await productServices.updateProduct(selectedProduct.productId, updatedProduct);
-
-            // Update the product in the frontend state
-            setProducts((prevProducts) =>
-                prevProducts.map((product) =>
-                    product.productId === selectedProduct.productId ? updatedProduct : product
-                )
+            await productServices.restockProduct(
+                selectedProduct.productId,
+                parseInt(newStock, 10),
+                selectedBatch ? selectedBatch.buyingPrice : parseFloat(newBuyingPrice),
+                selectedBatch ? selectedBatch.sellingPrice : parseFloat(newSellingPrice),
+                selectedBatch ? selectedBatch.batchId : null
             );
 
             setSnackbarMessage("Stock updated successfully");
             setSnackbarOpen(true);
+            fetchProducts(); // Refresh the product list
         } catch (error) {
             console.error("Error updating stock:", error);
-            setSnackbarMessage("Failed to update stock");
-            setSnackbarOpen(true);
+            setSnackbarErrorMessage("Failed to update stock: " + (error.response?.data?.message || error.message));
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseRestockDialog();
         }
@@ -122,7 +144,7 @@ const Inventory = () => {
 
     useEffect(() => {
         authService.getSuppliers().then(response => {
-            setSuppliers(response); // Fetch and set suppliers
+            setSuppliers(response);
         }).catch(error => {
             console.error("Error fetching suppliers:", error);
         });
@@ -134,7 +156,7 @@ const Inventory = () => {
             ...formData,
             [name]: value
         });
-    }
+    };
 
     const handleChangeCategory = (e) => {
         const { name, value } = e.target;
@@ -142,7 +164,7 @@ const Inventory = () => {
             ...formDataCategory,
             [name]: value
         });
-    }
+    };
 
     const handleFileChange = (e) => {
         setFormData(prev => ({ ...prev, image: e.target.files[0] }));
@@ -191,7 +213,7 @@ const Inventory = () => {
     };
 
     const handleConfirmRegisterProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice ) {
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice) {
             setSnackbarErrorMessage('Please fill in all required fields');
             setSnackbarErrorOpen(true);
             return;
@@ -216,7 +238,6 @@ const Inventory = () => {
             return;
         }
 
-        // Check if the category exists
         const categoryExists = categories.some(category => category.categoryName === formData.categoryName);
         if (!categoryExists) {
             setSnackbarErrorMessage('Category does not exist');
@@ -224,7 +245,6 @@ const Inventory = () => {
             return;
         }
 
-        // Check if the supplier exists
         const supplierExists = suppliers.some(supplier => supplier.companyName === formData.supplierCompanyName);
         if (!supplierExists) {
             setSnackbarErrorMessage('Supplier does not exist');
@@ -233,7 +253,7 @@ const Inventory = () => {
         }
 
         try {
-            const response = await productServices.addProduct(formData); // Send FormData to backend
+            const response = await productServices.addProduct(formData);
             setProducts([...products, response]);
             setSnackbarMessage('Product added successfully');
             setSnackbarOpen(true);
@@ -248,7 +268,7 @@ const Inventory = () => {
             });
         } catch (error) {
             console.error('Error adding product:', error);
-            setSnackbarErrorMessage('Failed to add product');
+            setSnackbarErrorMessage('Failed to add product: ' + (error.response?.data?.message || error.message));
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseRegisterDialog();
@@ -262,11 +282,11 @@ const Inventory = () => {
         setFormData({
             productName: product.productName,
             categoryName: product.categoryName,
-            quantity: product.quantity,
+            quantity: 0, // Quantity will be handled via restocking
             buyingPrice: product.buyingPrice,
             sellingPrice: product.sellingPrice,
             supplierCompanyName: product.supplierCompanyName,
-            productImage: formData.image
+            image: product.base64Image || defaultImage
         });
         setSelectedProductId(productId);
         setIsEditMode(true);
@@ -275,7 +295,7 @@ const Inventory = () => {
 
     const handleOpenUpdateDialog = () => {
         setUpdateDialogOpen(true);
-    }
+    };
 
     const handleCloseUpdateDialog = () => {
         setUpdateDialogOpen(false);
@@ -284,38 +304,22 @@ const Inventory = () => {
     };
 
     const handleConfirmUpdateProduct = async () => {
-        // Check if all required fields are filled
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice) {
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
             setSnackbarErrorMessage('Please fill in all required fields');
             setSnackbarErrorOpen(true);
             return;
         }
 
-        // Check if the quantity is valid
-        if (formData.quantity <= 0) {
-            setSnackbarErrorMessage('Quantity must be greater than zero');
-            setSnackbarErrorOpen(true);
-            return;
-        }
-
-        // Check if the buying price is less than or equal to the selling price
-        if (formData.buyingPrice > formData.sellingPrice) {
-            setSnackbarErrorMessage('Buying price must be less than or equal to selling price');
-            setSnackbarErrorOpen(true);
-            return;
-        }
-
         try {
-            const updatedProduct = {
+            const response = await productServices.updateProduct(selectedProductId, {
                 productName: formData.productName,
                 categoryName: formData.categoryName,
-                quantity: formData.quantity,
-                buyingPrice: formData.buyingPrice,
-                sellingPrice: formData.sellingPrice,
+                quantity: parseInt(formData.quantity) || 0,
+                buyingPrice: parseFloat(formData.buyingPrice) || 0.0,
+                sellingPrice: parseFloat(formData.sellingPrice) || 0.0,
                 supplierCompanyName: formData.supplierCompanyName,
-                productImage: formData.productImage
-            };
-            const response = await productServices.updateProduct(selectedProductId, updatedProduct);
+                image: formData.image
+            });
             const updatedProducts = products.map((product) =>
                 product.productId === selectedProductId ? response : product
             );
@@ -333,19 +337,46 @@ const Inventory = () => {
             });
         } catch (error) {
             console.error('Error updating product:', error);
+            setSnackbarErrorMessage('Failed to update product: ' + (error.response?.data?.message || error.message));
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseUpdateDialog();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
 
+    const handleOpenCategoryDeleteDialog = (categoryId) => {
+        setSelectedCategoryId(categoryId);
+        setCategoryDeleteDialogOpen(true);
+    }
+
+    const handleCloseCategoryDeleteDialog = () => {
+        setCategoryDeleteDialogOpen(false);
+    }
+
+    const handleDeleteCategory = async () => {
+        try {
+            await categoryService.deleteCategory(selectedCategoryId);
+            const updatedCategories = categories.filter((category) => category.categoryId !== selectedCategoryId);
+            setCategories(updatedCategories);
+            setSnackbarMessage('Category deleted successfully');
+            setSnackbarOpen(true);
+        } catch (error) {
+            console.error('Error deleting category:', error);
+            setSnackbarErrorMessage('Failed to delete category');
+            setSnackbarErrorOpen(true);
+        } finally {
+            handleCloseCategoryDeleteDialog();
+        }
+    }
+
     const handleOpenCategoryRegisterDialog = () => {
         setCategoryRegisterDialogOpen(true);
-    }
+    };
 
     const handleCloseCategoryRegisterDialog = () => {
         setCategoryRegisterDialogOpen(false);
-    }
+    };
 
     const handleRegisterCategory = async () => {
         if (!formDataCategory.newCategoryName.trim()) {
@@ -353,7 +384,6 @@ const Inventory = () => {
             setSnackbarErrorOpen(true);
             return;
         }
-        // Check for duplicate category
         const categoryExists = categories.some(category => category.categoryName === formDataCategory.newCategoryName);
         if (categoryExists) {
             setSnackbarErrorMessage('Category already exists');
@@ -374,12 +404,14 @@ const Inventory = () => {
             });
         } catch (error) {
             console.error('Error adding category:', error);
-            setSnackbarMessage('Failed to add category');
-            setSnackbarOpen(true);
+            setSnackbarErrorMessage('Failed to add category');
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseCategoryRegisterDialog();
         }
-    }
+    };
+
+
 
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
@@ -411,7 +443,7 @@ const Inventory = () => {
                     <Grid item xs={12} md={6.8} sx={{ textAlign: "right" }}>
                         <Button
                             variant="contained"
-                            onClick={handleOpenRestockDialog}
+                            onClick={() => handleOpenRestockDialog(null)}
                             sx={{ bgcolor: "#00ffff", textTransform: "none", color: "black" }}
                             startIcon={<AddCircleIcon/>}
                         >
@@ -422,20 +454,31 @@ const Inventory = () => {
                 <Dialog
                     open={restockDialogOpen}
                     onClose={handleCloseRestockDialog}
-                    maxWidth="md" // Set the maximum width to medium
-                    sx={{ '& .MuiDialog-paper': { minHeight: '400px', minWidth: '600px' } }} // Custom size
+                    maxWidth="md"
+                    sx={{ '& .MuiDialog-paper': { minHeight: '400px', minWidth: '600px' } }}
                 >
                     <DialogTitle>Restock Product</DialogTitle>
                     <DialogContent>
                         <Autocomplete
                             options={products}
                             getOptionLabel={(option) => option.productName}
-                            onChange={(event, newValue) => setSelectedProduct(newValue)}
+                            onChange={(event, newValue) => handleOpenRestockDialog(newValue)}
+                            value={selectedProduct}
                             renderInput={(params) => (
                                 <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }}/>
                             )}
                         />
-
+                        <Autocomplete
+                            options={[{ batchId: null, label: "Create New Batch" }, ...batches.map(batch => ({
+                                batchId: batch.batchId,
+                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`
+                            }))]}
+                            getOptionLabel={(option) => option.label}
+                            onChange={(event, newValue) => setSelectedBatch(newValue?.batchId ? batches.find(b => b.batchId === newValue.batchId) : null)}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }}/>
+                            )}
+                        />
                         <TextField
                             fullWidth
                             label="New Stock Quantity"
@@ -444,6 +487,26 @@ const Inventory = () => {
                             onChange={(e) => setNewStock(e.target.value)}
                             sx={{ marginTop: 2 }}
                         />
+                        {!selectedBatch && (
+                            <>
+                                <TextField
+                                    fullWidth
+                                    label="Buying Price"
+                                    type="number"
+                                    value={newBuyingPrice}
+                                    onChange={(e) => setNewBuyingPrice(e.target.value)}
+                                    sx={{ marginTop: 2 }}
+                                />
+                                <TextField
+                                    fullWidth
+                                    label="Selling Price"
+                                    type="number"
+                                    value={newSellingPrice}
+                                    onChange={(e) => setNewSellingPrice(e.target.value)}
+                                    sx={{ marginTop: 2 }}
+                                />
+                            </>
+                        )}
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseRestockDialog}>Cancel</Button>
@@ -498,8 +561,50 @@ const Inventory = () => {
                                     <TableCell>{product.sellingPrice}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8 }} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateProduct(product.productId)} startIcon={<EditIcon/>}>Edit</Button>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(product.productId)} startIcon={<DeleteIcon/>}>Delete</Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: '#007bff',
+                                                minWidth: '40px',
+                                                padding: '4px',
+                                                marginRight: '4px',
+                                                '&:hover': { bgcolor: '#0056b3' }
+                                            }}
+                                            onClick={() => handleUpdateProduct(product.productId)}
+                                            title="Edit Product"
+                                        >
+                                            <EditIcon fontSize="small" />
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: '#dc3545',
+                                                minWidth: '40px',
+                                                padding: '4px',
+                                                marginRight: '4px',
+                                                '&:hover': { bgcolor: '#a71d2a' }
+                                            }}
+                                            onClick={() => handleOpenDeleteDialog(product.productId)}
+                                            title="Delete Product"
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: '#28a745',
+                                                minWidth: '40px',
+                                                padding: '4px',
+                                                '&:hover': { bgcolor: '#1e7e34' }
+                                            }}
+                                            onClick={() => handleOpenRestockDialog(product)}
+                                            title="Restock Product"
+                                        >
+                                            <AddCircleIcon fontSize="small" />
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -540,7 +645,7 @@ const Inventory = () => {
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Autocomplete
-                                        options={categories.map((category) => category.categoryName)} // Map category names
+                                        options={categories.map((category) => category.categoryName)}
                                         value={formData.categoryName}
                                         onChange={(event, newValue) => {
                                             setFormData({ ...formData, categoryName: newValue });
@@ -555,18 +660,22 @@ const Inventory = () => {
                                         )}
                                     />
                                 </Grid>
-                                <Grid item xs={12}>
-                                    <TextField fullWidth label="Quantity" name="quantity" value={formData.quantity} onChange={handleChange} variant="outlined" required />
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <TextField fullWidth label="Buying Price" name="buyingPrice" value={formData.buyingPrice} onChange={handleChange} variant="outlined" required />
-                                </Grid>
-                                <Grid item xs={12}>
-                                    <TextField fullWidth label="Selling Price" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} variant="outlined" required />
-                                </Grid>
+                                {!isEditMode && (
+                                    <>
+                                        <Grid item xs={12}>
+                                            <TextField fullWidth label="Initial Quantity" name="quantity" value={formData.quantity} onChange={handleChange} variant="outlined" required />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <TextField fullWidth label="Buying Price" name="buyingPrice" value={formData.buyingPrice} onChange={handleChange} variant="outlined" required />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <TextField fullWidth label="Selling Price" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} variant="outlined" required />
+                                        </Grid>
+                                    </>
+                                )}
                                 <Grid item xs={12}>
                                     <Autocomplete
-                                        options={suppliers.map((supplier) => supplier.companyName)} // Map supplier names
+                                        options={suppliers.map((supplier) => supplier.companyName)}
                                         value={formData.supplierCompanyName}
                                         onChange={(event, newValue) => {
                                             setFormData({ ...formData, supplierCompanyName: newValue });
@@ -599,7 +708,7 @@ const Inventory = () => {
                                     justifyContent: 'center',
                                     cursor: 'pointer',
                                     backgroundColor: '#f9f9f9',
-                                    position: 'relative', // Enable absolute positioning for the image
+                                    position: 'relative',
                                 }}
                                 onClick={() => document.getElementById('fileInput').click()}
                             >
@@ -663,7 +772,7 @@ const Inventory = () => {
                                     <TableCell>{category.categoryId}</TableCell>
                                     <TableCell>{category.categoryName}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} startIcon={<DeleteIcon/>}>Delete</Button>
+                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenCategoryDeleteDialog(category.categoryId)} startIcon={<DeleteIcon/>}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -766,6 +875,23 @@ const Inventory = () => {
                     </Button>
                     <Button onClick={handleRegisterCategory}>
                         Register
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={categoryDeleteDialogOpen} onClose={handleCloseCategoryDeleteDialog}>
+                <DialogTitle>Confirm Deletion</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete this category?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseCategoryDeleteDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleDeleteCategory}>
+                        Delete
                     </Button>
                 </DialogActions>
             </Dialog>

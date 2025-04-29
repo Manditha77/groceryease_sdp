@@ -12,17 +12,21 @@ import {
     InputLabel,
     Select,
     MenuItem,
-    Divider,
+    Divider, Alert, Snackbar,
 } from '@mui/material';
 import { CartContext } from '../CartContext';
 import productServices from '../services/productServices';
+import {useLocation} from "react-router-dom";
 
 function ProductList() {
+    const location = useLocation();
     const [products, setProducts] = useState([]);
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const { addToCart, cartItems } = useContext(CartContext);
+    const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
+    const [open, setOpen] = useState(!!location.state?.success);
 
     useEffect(() => {
         productServices.getAllProducts().then((response) => {
@@ -53,8 +57,17 @@ function ProductList() {
         return cartItem ? cartItem.quantity : 0;
     };
 
+    const handleClose = () => {
+        setOpen(false);
+    };
+
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
+            <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
+                    {successMessage}
+                </Alert>
+            </Snackbar>
             <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                 Pre-Order Groceries
             </Typography>
@@ -105,7 +118,7 @@ function ProductList() {
                                         {product.categoryName}
                                     </Typography>
                                     <Typography variant="h6" sx={{ color: '#0478C0', mt: 1 }}>
-                                        Rs.{product.sellingPrice}
+                                        Rs.{product.sellingPrice.toFixed(2)}
                                     </Typography>
                                     <Typography variant="body2" color="textSecondary">
                                         In stock: {product.quantity}

@@ -52,11 +52,10 @@ const Dashboard = () => {
     const [orders, setOrders] = useState([]);
     const [products, setProducts] = useState([]);
     const [selectedOrder, setSelectedOrder] = useState(null);
-    const [orderDialogOpen, setOrderDialogOpen] = useState(false);
     const [newStatus, setNewStatus] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
+    const [orderDialogOpen, setOrderDialogOpen] = useState(false);
 
-    // Initialize the audio object for the notification sound
     const notificationSound = new Audio('/sounds/notification.wav');
 
     useEffect(() => {
@@ -108,7 +107,6 @@ const Dashboard = () => {
     const fetchOrders = async () => {
         try {
             const response = await orderServices.getAllOrders();
-            console.log('Fetched orders response:', response);
             const fetchedOrders = response.data;
             if (Array.isArray(fetchedOrders)) {
                 setOrders(fetchedOrders);
@@ -160,7 +158,6 @@ const Dashboard = () => {
         };
     }, []);
 
-    // Play the notification sound when a new order notification is shown
     useEffect(() => {
         if (openNewOrderSnackbar) {
             notificationSound.play().catch((error) => {
@@ -203,20 +200,26 @@ const Dashboard = () => {
 
         setIsUpdating(true);
         try {
-            const response = await orderServices.updateOrderStatus(selectedOrder.orderId, newStatus);
-            console.log('Status update response:', response.data);
+            const orderId = selectedOrder.orderId;
 
-            setOrders(orders.map(order =>
-                order.orderId === selectedOrder.orderId ? { ...order, status: newStatus } : order
-            ));
+            // Update the order status
+            const response = await orderServices.updateOrderStatus(orderId, newStatus);
+            console.log('Updated order from backend:', response.data); // Log the response to debug
 
-            setSelectedOrder({ ...selectedOrder, status: newStatus });
+            // Refetch all orders to ensure the table is updated with complete data
+            await fetchOrders();
 
+            // Fetch the specific order to update the dialog
+            const updatedOrderResponse = await orderServices.getOrderById(orderId);
+            const updatedOrder = updatedOrderResponse.data;
+            setSelectedOrder(updatedOrder);
+
+            // Refresh product and inventory data
             await fetchProducts();
             await fetchLowStockProducts();
             await fetchInventoryData();
 
-            const warnings = response.data.warnings || [];
+            const warnings = response.warnings || [];
             if (warnings.length > 0) {
                 setUpdateMessage('Order status updated, but some inventory adjustments failed:\n' + warnings.join('\n'));
                 setUpdateSeverity('warning');
@@ -227,7 +230,6 @@ const Dashboard = () => {
             setOpenUpdateSnackbar(true);
         } catch (error) {
             console.error('Error updating order status:', error);
-            console.error('Error response:', error.response?.data);
             const message = error.response?.data?.message || error.message || 'Failed to update order status. Please try again.';
             setUpdateMessage(message);
             setUpdateSeverity('error');
@@ -286,6 +288,25 @@ const Dashboard = () => {
             </Typography>
 
             <Grid container spacing={3}>
+                <Grid item xs={12} md={6} lg={3}>
+                    <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
+                        <CardContent>
+                            <Typography variant="h6" sx={{ color: '#1565C0', fontWeight: 'bold' }}>
+                                New Orders
+                            </Typography>
+                            <Typography variant="h4" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
+                                {inventoryCount}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#1565C0' }}>
+                                Total Products
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#FF6F00' }}>
+                                Low Stock: {lowStockCount}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
                         <CardContent>
@@ -417,16 +438,18 @@ const Dashboard = () => {
                             <TableBody>
                                 {orders.map((order) => (
                                     <TableRow
-                                        key={order.orderId}
+                                        key={order.orderId || 'unknown'}
                                         onClick={() => handleOrderClick(order)}
                                         sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }}
                                     >
-                                        <TableCell>{order.orderId}</TableCell>
-                                        <TableCell>{order.customerName}</TableCell>
-                                        <TableCell>{order.paymentMethod}</TableCell>
-                                        <TableCell>Rs.{order.totalAmount.toFixed(2)}</TableCell>
-                                        <TableCell>{order.status}</TableCell>
-                                        <TableCell>{new Date(order.orderDate).toLocaleString()}</TableCell>
+                                        <TableCell>{order.orderId || 'N/A'}</TableCell>
+                                        <TableCell>{order.customerName || 'N/A'}</TableCell>
+                                        <TableCell>{order.paymentMethod || 'N/A'}</TableCell>
+                                        <TableCell>Rs.{order.totalAmount !== undefined ? order.totalAmount : '0'}</TableCell>
+                                        <TableCell>{order.status || 'N/A'}</TableCell>
+                                        <TableCell>
+                                            {order.orderDate ? new Date(order.orderDate).toLocaleString() : 'N/A'}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -456,7 +479,7 @@ const Dashboard = () => {
                             </TableHead>
                             <TableBody>
                                 {lowStockProducts.map((product) => (
-                                    <TableRow key={product.id}>
+                                    <TableRow key={product.productId}>
                                         <TableCell>{product.productName}</TableCell>
                                         <TableCell align="right">{product.quantity}</TableCell>
                                         <TableCell align="right">{product.categoryName}</TableCell>
@@ -474,14 +497,18 @@ const Dashboard = () => {
             </Box>
 
             <Dialog open={orderDialogOpen} onClose={handleOrderDialogClose} maxWidth="md" fullWidth>
-                <DialogTitle>Order Details - Order ID: {selectedOrder?.orderId}</DialogTitle>
+                <DialogTitle>Order Details - Order ID: {selectedOrder?.orderId || 'N/A'}</DialogTitle>
                 <DialogContent>
                     {selectedOrder && (
                         <Box>
-                            <Typography variant="h6">Customer Name: {selectedOrder.customerName}</Typography>
-                            <Typography variant="body1">Payment Method: {selectedOrder.paymentMethod}</Typography>
-                            <Typography variant="body1">Total Amount: Rs.{selectedOrder.totalAmount.toFixed(2)}</Typography>
-                            <Typography variant="body1">Order Date: {new Date(selectedOrder.orderDate).toLocaleString()}</Typography>
+                            <Typography variant="h6">Customer Name: {selectedOrder.customerName || 'N/A'}</Typography>
+                            <Typography variant="body1">Payment Method: {selectedOrder.paymentMethod || 'N/A'}</Typography>
+                            <Typography variant="body1">
+                                Total Amount: Rs.{selectedOrder.totalAmount !== undefined ? selectedOrder.totalAmount : '0'}
+                            </Typography>
+                            <Typography variant="body1">
+                                Order Date: {selectedOrder.orderDate ? new Date(selectedOrder.orderDate).toLocaleString() : 'N/A'}
+                            </Typography>
                             <Box sx={{ mt: 2, mb: 2 }}>
                                 <FormControl fullWidth>
                                     <InputLabel>Status</InputLabel>
@@ -504,19 +531,25 @@ const Dashboard = () => {
                                         <TableRow>
                                             <TableCell>Product</TableCell>
                                             <TableCell>Quantity</TableCell>
+                                            <TableCell>Selling Price</TableCell>
+                                            <TableCell>Subtotal</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {selectedOrder.items && Array.isArray(selectedOrder.items) ? (
                                             selectedOrder.items.map((item) => (
-                                                <TableRow key={item.id}>
+                                                <TableRow key={item.id || 'unknown'}>
                                                     <TableCell>{getProductName(item.productId)}</TableCell>
-                                                    <TableCell>{item.quantity}</TableCell>
+                                                    <TableCell>{item.quantity !== undefined ? item.quantity : 'N/A'}</TableCell>
+                                                    <TableCell>Rs.{item.sellingPrice !== undefined ? item.sellingPrice : '0'}</TableCell>
+                                                    <TableCell>
+                                                        Rs.{item.sellingPrice !== undefined && item.quantity !== undefined ? (item.quantity * item.sellingPrice) : '0'}
+                                                    </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={2}>No items available.</TableCell>
+                                                <TableCell colSpan={4}>No items available.</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>

@@ -44,6 +44,9 @@ const orderServices = {
     getAllOrders: () => {
         return axiosInstance.get('');
     },
+    getOrderById: (orderId) => {
+        return axiosInstance.get(`/${orderId}`);
+    },
     updateOrderStatus: (orderId, status) => {
         return axiosInstance.put(`/${orderId}/status`, { status }); // Wrap status in an object
     },
