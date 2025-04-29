@@ -1,6 +1,7 @@
 package com.uok.groceryease_backend.controller;
 
 import com.uok.groceryease_backend.DTO.ProductDTO;
+import com.uok.groceryease_backend.DTO.ProductBatchDTO;
 import com.uok.groceryease_backend.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
@@ -11,7 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-@CrossOrigin (origins = "*")
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
@@ -19,7 +20,7 @@ public class ProductController {
     @Autowired
     private ProductService productService;
 
-    @PostMapping(consumes = { "multipart/form-data" })
+    @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<ProductDTO> addProduct(
             @RequestParam("productName") String productName,
             @RequestParam("categoryName") String categoryName,
@@ -40,11 +41,10 @@ public class ProductController {
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
         } else {
-            // Load default image from resources or keep as null
             ClassPathResource defaultImage = new ClassPathResource("static/images/unnamed.jpg");
             byte[] defaultImageBytes = defaultImage.getInputStream().readAllBytes();
             productDTO.setImage(defaultImageBytes);
-        } // Convert image to byte array
+        }
 
         ProductDTO createdProduct = productService.addProduct(productDTO);
         return ResponseEntity.ok(createdProduct);
@@ -56,7 +56,7 @@ public class ProductController {
         return ResponseEntity.ok(products);
     }
 
-    @PutMapping(value = "/{productId}", consumes = { "multipart/form-data" })
+    @PutMapping(value = "/{productId}", consumes = {"multipart/form-data"})
     public ResponseEntity<ProductDTO> updateProduct(
             @PathVariable Long productId,
             @RequestParam("productName") String productName,
@@ -78,7 +78,6 @@ public class ProductController {
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
         } else {
-            // Load default image from resources or keep as null
             ClassPathResource defaultImage = new ClassPathResource("static/images/unnamed.jpg");
             byte[] defaultImageBytes = defaultImage.getInputStream().readAllBytes();
             productDTO.setImage(defaultImageBytes);
@@ -86,6 +85,34 @@ public class ProductController {
 
         ProductDTO updatedProduct = productService.updateProduct(productId, productDTO);
         return ResponseEntity.ok(updatedProduct);
+    }
+
+    @PostMapping("/{productId}/restock")
+    public ResponseEntity<ProductDTO> restockProduct(
+            @PathVariable Long productId,
+            @RequestParam("quantity") int quantity,
+            @RequestParam("buyingPrice") double buyingPrice,
+            @RequestParam("sellingPrice") double sellingPrice,
+            @RequestParam(value = "batchId", required = false) Long batchId) {
+
+        ProductDTO restockedProduct = productService.restockProduct(productId, quantity, buyingPrice, sellingPrice, batchId);
+        return ResponseEntity.ok(restockedProduct);
+    }
+
+    @PutMapping("/{productId}/update-prices")
+    public ResponseEntity<Void> updateBatchPrices(
+            @PathVariable Long productId,
+            @RequestParam("buyingPrice") double buyingPrice,
+            @RequestParam("sellingPrice") double sellingPrice) {
+
+        productService.updateBatchPrices(productId, buyingPrice, sellingPrice);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{productId}/batches")
+    public ResponseEntity<List<ProductBatchDTO>> getProductBatches(@PathVariable Long productId) {
+        List<ProductBatchDTO> batches = productService.getProductBatches(productId);
+        return ResponseEntity.ok(batches);
     }
 
     @DeleteMapping("/{productId}")

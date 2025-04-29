@@ -16,14 +16,11 @@ public class ProductDTO {
     @NotBlank(message = "Product name cannot be empty")
     private String productName;
 
-    @Min(value = 1, message = "Quantity must be greater than zero")
-    private int quantity;
+    private int quantity; // Total quantity across all batches
 
-    @Positive(message = "Buying price must be a positive value")
-    private double buyingPrice;
+    private double buyingPrice; // Latest batch's buying price (for display)
 
-    @Positive(message = "Selling price must be a positive value")
-    private double sellingPrice;
+    private double sellingPrice; // Latest batch's selling price (for display)
 
     private Long categoryId;
 

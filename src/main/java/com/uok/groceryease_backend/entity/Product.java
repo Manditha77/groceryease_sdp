@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import jakarta.validation.constraints.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @Entity
@@ -21,18 +24,6 @@ public class Product {
     @Column(nullable = false)
     private String productName;
 
-    @Column(nullable = false)
-    @Min(value = 1, message = "Quantity must be greater than or equal to 0")
-    private int quantity;
-
-    @Column(nullable = false)
-    @Positive(message = "Buying price must be a positive value")
-    private double buyingPrice;
-
-    @Column(nullable = false)
-    @Positive(message = "Selling price must be a positive value")
-    private double sellingPrice;
-
     @ManyToOne
     @JoinColumn(name = "categoryId", nullable = false)
     private Category category;
@@ -44,4 +35,12 @@ public class Product {
     @Lob
     @Column(name = "image", columnDefinition = "LONGBLOB")
     private byte[] image;  // Field to store the image as a BLOB
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ProductBatch> batches = new ArrayList<>();
+
+    // Helper method to get total quantity
+    public int getTotalQuantity() {
+        return batches.stream().mapToInt(ProductBatch::getQuantity).sum();
+    }
 }

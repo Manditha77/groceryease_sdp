@@ -24,6 +24,9 @@ public class OrderController {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("order", savedOrderDTO);
+        if (savedOrderDTO.getWarnings() != null && !savedOrderDTO.getWarnings().isEmpty()) {
+            response.put("warnings", savedOrderDTO.getWarnings());
+        }
         return ResponseEntity.ok(response);
     }
 
@@ -33,13 +36,24 @@ public class OrderController {
         return ResponseEntity.ok(orders);
     }
 
+    @GetMapping("/{orderId}")
+    public ResponseEntity<OrderDTO> getOrderById(@PathVariable Long orderId) {
+        OrderDTO orderDTO = orderService.getOrderById(orderId);
+        return ResponseEntity.ok(orderDTO);
+    }
+
     @PutMapping("/{orderId}/status")
-    public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable Long orderId, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> updateOrderStatus(@PathVariable Long orderId, @RequestBody Map<String, String> body) {
         String status = body.get("status");
         if (status == null) {
             throw new IllegalArgumentException("Status is required");
         }
         OrderDTO updatedOrderDTO = orderService.updateOrderStatus(orderId, status);
-        return ResponseEntity.ok(updatedOrderDTO);
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", updatedOrderDTO);
+        if (updatedOrderDTO.getWarnings() != null && !updatedOrderDTO.getWarnings().isEmpty()) {
+            response.put("warnings", updatedOrderDTO.getWarnings());
+        }
+        return ResponseEntity.ok(response);
     }
 }
