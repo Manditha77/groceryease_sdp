@@ -1,7 +1,8 @@
 import axios from 'axios';
 import defaultImage from '../images/unnamed.jpg';
 
-const API_URL_PRODUCT = 'http://localhost:8080/api/products';
+const API_URL_PRODUCT = 'http://192.168.1.163:8080/api/products';
+const BARCODE_URL = 'http://192.168.1.163:8080/api/barcodes';
 
 const getAllProducts = () => {
     return axios.get(API_URL_PRODUCT);
@@ -19,6 +20,7 @@ const addProduct = async (productData) => {
     formData.append("buyingPrice", productData.buyingPrice || 0.0);
     formData.append("sellingPrice", productData.sellingPrice || 0.0);
     formData.append("supplierCompanyName", productData.supplierCompanyName);
+    formData.append("barcode", productData.barcode || "");
 
     let fileToUpload;
     if (productData.image instanceof File) {
@@ -42,6 +44,7 @@ const updateProduct = async (productId, productData) => {
     formData.append("buyingPrice", productData.buyingPrice || 0.0);
     formData.append("sellingPrice", productData.sellingPrice || 0.0);
     formData.append("supplierCompanyName", productData.supplierCompanyName);
+    formData.append("barcode", productData.barcode || "");
 
     let fileToUpload;
     if (productData.image instanceof File) {
@@ -73,11 +76,23 @@ const deleteProduct = (productId) => {
     return axios.delete(`${API_URL_PRODUCT}/${productId}`);
 };
 
-export default {
+const getLatestBarcode = () => {
+    return axios.get(`${BARCODE_URL}/latest`);
+};
+
+const getProductByBarcode = (barcode) => {
+    return axios.get(`${API_URL_PRODUCT}/barcode/${barcode}`);
+};
+
+const productService = {
     getAllProducts,
     getProductBatches,
     addProduct,
     updateProduct,
     restockProduct,
-    deleteProduct
+    deleteProduct,
+    getLatestBarcode,
+    getProductByBarcode,
 };
+
+export default productService;

@@ -109,7 +109,11 @@ const Dashboard = () => {
             const response = await orderServices.getAllOrders();
             const fetchedOrders = response.data;
             if (Array.isArray(fetchedOrders)) {
-                setOrders(fetchedOrders);
+                // Filter for e-commerce pre-orders (orderType: ECOMMERCE, status: PENDING)
+                const preOrders = fetchedOrders.filter(order =>
+                    order.orderType === 'ECOMMERCE'
+                );
+                setOrders(preOrders);
             } else {
                 console.error('Fetched orders is not an array:', fetchedOrders);
                 setOrders([]);
@@ -148,7 +152,9 @@ const Dashboard = () => {
         fetchProducts();
 
         webSocketService.connect((newOrder) => {
-            setOrders((prevOrders) => [newOrder, ...prevOrders]);
+            setOrders((prevOrders) => [newOrder, ...prevOrders].filter(order =>
+                order.orderType === 'ECOMMERCE' && order.status === 'PENDING'
+            ));
             setNewOrderNotification(newOrder);
             setOpenNewOrderSnackbar(true);
         });
@@ -288,25 +294,6 @@ const Dashboard = () => {
             </Typography>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={6} lg={3}>
-                    <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
-                        <CardContent>
-                            <Typography variant="h6" sx={{ color: '#1565C0', fontWeight: 'bold' }}>
-                                New Orders
-                            </Typography>
-                            <Typography variant="h4" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
-                                {inventoryCount}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#1565C0' }}>
-                                Total Products
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#FF6F00' }}>
-                                Low Stock: {lowStockCount}
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
                 <Grid item xs={12} md={6} lg={3}>
                     <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
                         <CardContent>

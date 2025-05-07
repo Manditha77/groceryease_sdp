@@ -7,7 +7,7 @@ import defaultImage from '../images/unnamed.jpg';
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
 import authService from "../services/authService";
-import {Delete} from "@mui/icons-material";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 const Inventory = () => {
     const [products, setProducts] = useState([]);
@@ -40,6 +40,7 @@ const Inventory = () => {
         sellingPrice: '',
         supplierCompanyName: '',
         image: defaultImage,
+        barcode: '',
     });
     const [formDataCategory, setFormDataCategory] = useState({
         newCategoryName: ''
@@ -58,6 +59,9 @@ const Inventory = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [openImageDialog, setOpenImageDialog] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
+    const [scannerDialogOpen, setScannerDialogOpen] = useState(false);
+    const scannerRef = useRef(null);
+    const readerRef = useRef(null);
 
     useEffect(() => {
         fetchProducts();
@@ -150,6 +154,50 @@ const Inventory = () => {
         });
     }, []);
 
+    useEffect(() => {
+        if (!scannerDialogOpen) return;
+
+        const initializeScanner = () => {
+            const readerElement = document.getElementById("reader");
+            if (!readerElement) {
+                setTimeout(initializeScanner, 100);
+                return;
+            }
+
+            const scanner = new Html5QrcodeScanner("reader", {
+                fps: 10,
+                qrbox: { width: 350, height: 350 },
+                rememberLastUsedCamera: true,
+                aspectRatio: 1.0,
+            }, false);
+
+            scannerRef.current = scanner;
+
+            scanner.render((data) => {
+                setFormData(prev => ({ ...prev, barcode: data }));
+                setSnackbarMessage("Barcode scanned and set: " + data);
+                setSnackbarOpen(true);
+                handleCloseScannerDialog();
+            }, (error) => {
+                console.error("Scan error:", error);
+            });
+        };
+
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch((err) => console.error("Failed to clear previous scanner:", err));
+            scannerRef.current = null;
+        }
+
+        initializeScanner();
+
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.clear().catch((err) => console.error("Failed to clear scanner on unmount:", err));
+                scannerRef.current = null;
+            }
+        };
+    }, [scannerDialogOpen]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData({
@@ -173,6 +221,18 @@ const Inventory = () => {
     const handleImageClick = (image) => {
         setSelectedImage(image);
         setOpenImageDialog(true);
+    };
+
+    const handleOpenScannerDialog = () => {
+        setScannerDialogOpen(true);
+    };
+
+    const handleCloseScannerDialog = () => {
+        setScannerDialogOpen(false);
+        if (scannerRef.current) {
+            scannerRef.current.clear().catch((err) => console.error("Failed to clear scanner on dialog close:", err));
+            scannerRef.current = null;
+        }
     };
 
     const handleCloseImageDialog = () => {
@@ -264,7 +324,8 @@ const Inventory = () => {
                 buyingPrice: '',
                 sellingPrice: '',
                 supplierCompanyName: '',
-                image: defaultImage
+                image: defaultImage,
+                barcode: '',
             });
         } catch (error) {
             console.error('Error adding product:', error);
@@ -286,7 +347,8 @@ const Inventory = () => {
             buyingPrice: product.buyingPrice,
             sellingPrice: product.sellingPrice,
             supplierCompanyName: product.supplierCompanyName,
-            image: product.base64Image || defaultImage
+            image: product.base64Image || defaultImage,
+            barcode: product.barcode || '',
         });
         setSelectedProductId(productId);
         setIsEditMode(true);
@@ -318,6 +380,7 @@ const Inventory = () => {
                 buyingPrice: parseFloat(formData.buyingPrice) || 0.0,
                 sellingPrice: parseFloat(formData.sellingPrice) || 0.0,
                 supplierCompanyName: formData.supplierCompanyName,
+                barcode: formData.barcode,
                 image: formData.image
             });
             const updatedProducts = products.map((product) =>
@@ -333,7 +396,8 @@ const Inventory = () => {
                 buyingPrice: '',
                 sellingPrice: '',
                 supplierCompanyName: '',
-                image: defaultImage
+                image: defaultImage,
+                barcode: '',
             });
         } catch (error) {
             console.error('Error updating product:', error);
@@ -527,6 +591,7 @@ const Inventory = () => {
                                 <TableCell>Buying Price</TableCell>
                                 <TableCell>Selling Price</TableCell>
                                 <TableCell>Supplier</TableCell>
+                                <TableCell>BarCode</TableCell>
                                 <TableCell>Actions</TableCell>
                             </TableRow>
                         </TableHead>
@@ -560,6 +625,7 @@ const Inventory = () => {
                                     <TableCell>{product.buyingPrice}</TableCell>
                                     <TableCell>{product.sellingPrice}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
+                                    <TableCell>{product.barcode}</TableCell>
                                     <TableCell>
                                         <Button
                                             variant="contained"
@@ -689,6 +755,30 @@ const Inventory = () => {
                                             />
                                         )}
                                     />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Grid container spacing={2} alignItems="center">
+                                        <Grid item xs={9}>
+                                            <TextField
+                                                fullWidth
+                                                label="Barcode"
+                                                name="barcode"
+                                                value={formData.barcode}
+                                                onChange={handleChange}
+                                                variant="outlined"
+                                                required
+                                            />
+                                        </Grid>
+                                        <Grid item xs={3}>
+                                            <Button
+                                                variant="contained"
+                                                onClick={handleOpenScannerDialog}
+                                                sx={{ bgcolor: "#007bff", textTransform: "none" }}
+                                            >
+                                                Scan
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -893,6 +983,26 @@ const Inventory = () => {
                     <Button onClick={handleDeleteCategory}>
                         Delete
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={scannerDialogOpen}
+                onClose={handleCloseScannerDialog}
+                maxWidth="lg"
+                fullWidth
+                sx={{ '& .MuiDialog-paper': { width: '90vw', maxWidth: '600px', height: '70vh', maxHeight: '500px' } }}
+            >
+                <DialogTitle>Scan Barcode</DialogTitle>
+                <DialogContent>
+                    <div
+                        id="reader"
+                        ref={readerRef}
+                        style={{ width: '100%', height: 'calc(100% - 20px)', minHeight: '300px', border: '1px solid #ccc' }}
+                    ></div>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseScannerDialog}>Cancel</Button>
                 </DialogActions>
             </Dialog>
 

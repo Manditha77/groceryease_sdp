@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider } from "@mui/material";
-import { Dashboard, People, Inventory, Store, Assessment, CreditCard, AccountCircle } from "@mui/icons-material";
+import { Dashboard, People, Inventory, Store, Assessment, CreditCard, AccountCircle, PointOfSale } from "@mui/icons-material";
 import { Link, useLocation } from 'react-router-dom';
 
 const Sidebar = () => {
@@ -20,10 +20,10 @@ const Sidebar = () => {
                 "& .MuiDrawer-paper": {
                     width: 250,
                     boxSizing: "border-box",
-                    backgroundColor: "#e7eff3", // Light gray background
-                    borderRight: "2px solid #ddd", // Sidebar border
-                    marginTop: "64px", // Pushes Sidebar below Navbar (assuming Navbar height is 64px)
-                    height: `calc(100% - 64px)`, // Makes sure Sidebar fits below Navbar
+                    backgroundColor: "#e7eff3",
+                    borderRight: "2px solid #ddd",
+                    marginTop: "64px",
+                    height: `calc(100% - 64px)`,
                 },
             }}
         >
@@ -114,6 +114,21 @@ const Sidebar = () => {
                             <CreditCard />
                         </ListItemIcon>
                         <ListItemText primary="Credit Customers" />
+                    </ListItemButton>
+                </ListItem>
+                <Divider />
+
+                <ListItem disablePadding>
+                    <ListItemButton
+                        component={Link}
+                        to="/pos"
+                        selected={selectedIndex === "/pos"}
+                        onClick={(event) => handleListItemClick(event, "/pos")}
+                    >
+                        <ListItemIcon>
+                            <PointOfSale />
+                        </ListItemIcon>
+                        <ListItemText primary="POS Terminal" />
                     </ListItemButton>
                 </ListItem>
                 <Divider />

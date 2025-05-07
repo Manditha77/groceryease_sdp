@@ -12,9 +12,11 @@ import Reports from './pages/Reports';
 import CreditCustomers from './pages/CreditCustomers';
 import Profile from './pages/Profile';
 import ProductList from './pages/ProductList';
-import Cart from './pages/Cart'; // Import Cart component
-import Checkout from './pages/Checkout'; // Import Checkout component
-import { CartProvider } from './CartContext'; // Import CartProvider for cart functionality
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import PosTerminal from './pages/PosTerminal';
+import MobileScanner from './pages/MobileScanner'; // Import MobileScanner
+import { CartProvider } from './CartContext';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('authToken'));
@@ -30,17 +32,17 @@ function App() {
     }, []);
 
     return (
-        <CartProvider> {/* Wrap the app with CartProvider */}
+        <CartProvider>
             <Router>
                 <Navbar isAuthenticated={isAuthenticated} setIsAuthenticated={setIsAuthenticated} />
                 <div style={{ display: 'flex' }}>
-                    {/* Show Sidebar only for OWNER and EMPLOYEE */}
                     {isAuthenticated && (userType === 'OWNER' || userType === 'EMPLOYEE') && <Sidebar />}
                     <div style={{ flexGrow: 1, padding: '20px' }}>
                         <Routes>
                             {/* Public routes */}
                             <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} />} />
                             <Route path="/register" element={<Register />} />
+                            <Route path="/mobile-scan" element={<MobileScanner />} /> {/* Added public route for mobile scanning */}
 
                             {/* Routes for OWNER and EMPLOYEE */}
                             <Route
@@ -108,6 +110,16 @@ function App() {
                                 element={
                                     isAuthenticated && (userType === 'OWNER' || userType === 'EMPLOYEE') ? (
                                         <Profile />
+                                    ) : (
+                                        <Navigate to="/login" />
+                                    )
+                                }
+                            />
+                            <Route
+                                path="/pos"
+                                element={
+                                    isAuthenticated && (userType === 'OWNER' || userType === 'EMPLOYEE') ? (
+                                        <PosTerminal />
                                     ) : (
                                         <Navigate to="/login" />
                                     )
