@@ -34,10 +34,13 @@ public class Product {
 
     @Lob
     @Column(name = "image", columnDefinition = "LONGBLOB")
-    private byte[] image;  // Field to store the image as a BLOB
+    private byte[] image;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ProductBatch> batches = new ArrayList<>();
+
+    @Column(name = "barcode", unique = true)
+    private String barcode; // New barcode field
 
     // Helper method to get total quantity
     public int getTotalQuantity() {

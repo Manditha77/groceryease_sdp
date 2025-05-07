@@ -23,4 +23,5 @@ public class OrderDTO {
     private List<OrderItemDTO> items;
     private List<String> warnings; // Added for inventory adjustment warnings
     private Boolean inventoryAdjusted; // Added to expose inventoryAdjusted to the frontend
+    private String orderType; // Added to expose orderType to the frontend
 }

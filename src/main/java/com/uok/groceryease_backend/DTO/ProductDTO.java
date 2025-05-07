@@ -16,11 +16,11 @@ public class ProductDTO {
     @NotBlank(message = "Product name cannot be empty")
     private String productName;
 
-    private int quantity; // Total quantity across all batches
+    private int quantity;
 
-    private double buyingPrice; // Latest batch's buying price (for display)
+    private double buyingPrice;
 
-    private double sellingPrice; // Latest batch's selling price (for display)
+    private double sellingPrice;
 
     private Long categoryId;
 
@@ -30,7 +30,9 @@ public class ProductDTO {
 
     private String supplierCompanyName;
 
-    private byte[] image;  // Field to store the image as a BLOB
+    private byte[] image;
 
-    private String base64Image; // Field to store the Base64-encoded image
+    private String base64Image;
+
+    private String barcode; // New barcode field
 }

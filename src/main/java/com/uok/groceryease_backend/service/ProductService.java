@@ -37,6 +37,7 @@ public class ProductService {
     public ProductDTO addProduct(ProductDTO productDTO) {
         Product product = new Product();
         product.setProductName(productDTO.getProductName());
+        product.setBarcode(productDTO.getBarcode());
         product.setImage(productDTO.getImage());
 
         Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
@@ -50,14 +51,15 @@ public class ProductService {
         if (productRepository.existsByProductName(productDTO.getProductName())) {
             throw new IllegalArgumentException("Product already exists");
         }
-
+        if (productDTO.getBarcode() != null && productRepository.findByBarcode(productDTO.getBarcode()).isPresent()) {
+            throw new IllegalArgumentException("Barcode already exists: " + productDTO.getBarcode());
+        }
         if (productDTO.getBuyingPrice() > productDTO.getSellingPrice()) {
             throw new IllegalArgumentException("Buying price must be less than or equal to selling price");
         }
 
         Product savedProduct = productRepository.save(product);
 
-        // Create an initial batch for the product
         ProductBatch batch = new ProductBatch();
         batch.setProduct(savedProduct);
         batch.setQuantity(productDTO.getQuantity());
@@ -81,6 +83,7 @@ public class ProductService {
         if (optionalProduct.isPresent()) {
             Product product = optionalProduct.get();
             product.setProductName(productDTO.getProductName());
+            product.setBarcode(productDTO.getBarcode());
             product.setImage(productDTO.getImage());
 
             Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
@@ -91,14 +94,17 @@ public class ProductService {
                     .orElseThrow(() -> new RuntimeException("Supplier not found"));
             product.setSupplier(supplier);
 
+            if (productDTO.getBarcode() != null && !productDTO.getBarcode().equals(product.getBarcode()) &&
+                    productRepository.findByBarcode(productDTO.getBarcode()).isPresent()) {
+                throw new IllegalArgumentException("Barcode already exists: " + productDTO.getBarcode());
+            }
+
             Product updatedProduct = productRepository.save(product);
 
-            // Update or create a batch based on the new quantity and prices
             if (productDTO.getQuantity() > 0) {
                 List<ProductBatch> existingBatches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(productId);
                 boolean batchUpdated = false;
 
-                // Check if we can add to an existing batch with matching prices
                 for (ProductBatch batch : existingBatches) {
                     if (batch.getBuyingPrice() == productDTO.getBuyingPrice() &&
                             batch.getSellingPrice() == productDTO.getSellingPrice()) {
@@ -109,7 +115,6 @@ public class ProductService {
                     }
                 }
 
-                // If no matching batch is found, create a new one
                 if (!batchUpdated) {
                     ProductBatch newBatch = new ProductBatch();
                     newBatch.setProduct(updatedProduct);
@@ -135,7 +140,6 @@ public class ProductService {
         Product product = optionalProduct.get();
 
         if (batchId != null) {
-            // Add to an existing batch
             Optional<ProductBatch> optionalBatch = productBatchRepository.findById(batchId);
             if (!optionalBatch.isPresent()) {
                 throw new RuntimeException("Batch not found with ID: " + batchId);
@@ -147,7 +151,6 @@ public class ProductService {
             batch.setQuantity(batch.getQuantity() + quantity);
             productBatchRepository.save(batch);
         } else {
-            // Create a new batch
             ProductBatch newBatch = new ProductBatch();
             newBatch.setProduct(product);
             newBatch.setQuantity(quantity);
@@ -163,7 +166,7 @@ public class ProductService {
     public void updateBatchPrices(Long productId, double newBuyingPrice, double newSellingPrice) {
         List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(productId);
         for (ProductBatch batch : batches) {
-            if (batch.getQuantity() > 0) { // Only update batches with remaining stock
+            if (batch.getQuantity() > 0) {
                 batch.setBuyingPrice(newBuyingPrice);
                 batch.setSellingPrice(newSellingPrice);
                 productBatchRepository.save(batch);
@@ -183,10 +186,19 @@ public class ProductService {
         productRepository.deleteById(productId);
     }
 
+    public ProductDTO getProductByBarcode(String barcode) {
+        Optional<Product> optionalProduct = productRepository.findByBarcode(barcode);
+        if (optionalProduct.isPresent()) {
+            return convertToDTO(optionalProduct.get());
+        }
+        return null; // Return null if no product is found
+    }
+
     private ProductDTO convertToDTO(Product product) {
         ProductDTO productDTO = new ProductDTO();
         productDTO.setProductId(product.getProductId());
         productDTO.setProductName(product.getProductName());
+        productDTO.setBarcode(product.getBarcode());
         productDTO.setQuantity(product.getTotalQuantity());
         productDTO.setCategoryId(product.getCategory().getCategoryId());
         productDTO.setCategoryName(product.getCategory().getCategoryName());
@@ -194,18 +206,28 @@ public class ProductService {
         productDTO.setSupplierCompanyName(product.getSupplier().getCompanyName());
         productDTO.setImage(product.getImage());
 
-        // Set buyingPrice and sellingPrice from the most recent batch
         List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(product.getProductId());
-        if (!batches.isEmpty()) {
-            ProductBatch latestBatch = batches.get(batches.size() - 1); // Most recent batch
-            productDTO.setBuyingPrice(latestBatch.getBuyingPrice());
-            productDTO.setSellingPrice(latestBatch.getSellingPrice());
-        } else {
-            productDTO.setBuyingPrice(0.0);
-            productDTO.setSellingPrice(0.0);
+        boolean batchFound = false;
+        for (ProductBatch batch : batches) {
+            if (batch.getQuantity() > 0) {
+                productDTO.setBuyingPrice(batch.getBuyingPrice());
+                productDTO.setSellingPrice(batch.getSellingPrice());
+                batchFound = true;
+                break;
+            }
         }
 
-        // Convert image to Base64 string
+        if (!batchFound) {
+            if (!batches.isEmpty()) {
+                ProductBatch latestBatch = batches.get(batches.size() - 1);
+                productDTO.setBuyingPrice(latestBatch.getBuyingPrice());
+                productDTO.setSellingPrice(latestBatch.getSellingPrice());
+            } else {
+                productDTO.setBuyingPrice(0.0);
+                productDTO.setSellingPrice(0.0);
+            }
+        }
+
         if (product.getImage() != null) {
             productDTO.setBase64Image(java.util.Base64.getEncoder().encodeToString(product.getImage()));
         }

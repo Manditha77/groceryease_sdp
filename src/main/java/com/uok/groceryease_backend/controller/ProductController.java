@@ -28,6 +28,7 @@ public class ProductController {
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
+            @RequestParam("barcode") String barcode,
             @RequestParam("image") MultipartFile image) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
@@ -37,6 +38,7 @@ public class ProductController {
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
+        productDTO.setBarcode(barcode);
 
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
@@ -65,6 +67,7 @@ public class ProductController {
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
+            @RequestParam("barcode") String barcode,
             @RequestParam(value = "image", required = false) MultipartFile image) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
@@ -74,6 +77,7 @@ public class ProductController {
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
+        productDTO.setBarcode(barcode);
 
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
@@ -119,5 +123,15 @@ public class ProductController {
     public ResponseEntity<Void> deleteProduct(@PathVariable Long productId) {
         productService.deleteProduct(productId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/barcode/{barcode}")
+    public ResponseEntity<ProductDTO> getProductByBarcode(@PathVariable String barcode) {
+        ProductDTO product = productService.getProductByBarcode(barcode);
+        if (product != null) {
+            return ResponseEntity.ok(product);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

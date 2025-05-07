@@ -30,6 +30,18 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/pos")
+    public ResponseEntity<Map<String, Object>> createPosOrder(@RequestBody OrderDTO orderDTO) {
+        OrderDTO savedOrderDTO = orderService.createPosOrder(orderDTO);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("order", savedOrderDTO);
+        if (savedOrderDTO.getWarnings() != null && !savedOrderDTO.getWarnings().isEmpty()) {
+            response.put("warnings", savedOrderDTO.getWarnings());
+        }
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping
     public ResponseEntity<List<OrderDTO>> getAllOrders() {
         List<OrderDTO> orders = orderService.getAllOrders();

@@ -52,19 +52,18 @@ public class OrderService {
                     java.util.Arrays.toString(Order.Status.values()));
         }
         order.setOrderDate(LocalDateTime.now());
-        order.setInventoryAdjusted(false); // Explicitly set to false on creation
+        order.setInventoryAdjusted(false);
+        order.setOrderType(Order.OrderType.ECOMMERCE); // Set order type to ECOMMERCE
 
         List<OrderItem> orderItems = new ArrayList<>();
         List<String> inventoryWarnings = new ArrayList<>();
 
-        // Process each order item without deducting inventory
         for (OrderItemDTO itemDTO : orderDTO.getItems()) {
             OrderItem orderItem = new OrderItem();
             orderItem.setProductId(itemDTO.getProductId());
             orderItem.setQuantity(itemDTO.getQuantity());
             orderItem.setOrder(order);
 
-            // Check if there's enough inventory (but don't deduct yet)
             List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(itemDTO.getProductId());
             int totalAvailableQuantity = batches.stream().mapToInt(ProductBatch::getQuantity).sum();
             if (totalAvailableQuantity < itemDTO.getQuantity()) {
@@ -73,18 +72,93 @@ public class OrderService {
                 throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
             }
 
-            // Set the selling price from the most recent batch (for reference)
             ProductBatch mostRecentBatch = batches.stream()
                     .filter(batch -> batch.getQuantity() > 0)
                     .max((b1, b2) -> b2.getCreatedDate().compareTo(b1.getCreatedDate()))
                     .orElseThrow(() -> new RuntimeException("No stock available for product ID: " + itemDTO.getProductId()));
             orderItem.setSellingPrice(mostRecentBatch.getSellingPrice());
-            // Do NOT set the batch yet; we'll do this when the status changes to COMPLETED
 
             orderItems.add(orderItem);
         }
 
         order.setItems(orderItems);
+        Order savedOrder = orderRepository.save(order);
+        OrderDTO savedOrderDTO = convertToDTO(savedOrder);
+
+        if (!inventoryWarnings.isEmpty()) {
+            savedOrderDTO.setWarnings(inventoryWarnings);
+        }
+
+        messagingTemplate.convertAndSend("/topic/orders", savedOrderDTO);
+        return savedOrderDTO;
+    }
+
+    @Transactional
+    public OrderDTO createPosOrder(OrderDTO orderDTO) {
+        Order order = new Order();
+        order.setCustomerName(orderDTO.getCustomerName());
+        order.setPaymentMethod(orderDTO.getPaymentMethod());
+        order.setTotalAmount(orderDTO.getTotalAmount());
+        order.setStatus(Order.Status.COMPLETED); // POS orders are completed immediately
+        order.setOrderDate(LocalDateTime.now());
+        order.setInventoryAdjusted(false);
+        order.setOrderType(Order.OrderType.POS); // Set order type to POS
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        List<String> inventoryWarnings = new ArrayList<>();
+
+        for (OrderItemDTO itemDTO : orderDTO.getItems()) {
+            OrderItem orderItem = new OrderItem();
+            orderItem.setProductId(itemDTO.getProductId());
+            orderItem.setQuantity(itemDTO.getQuantity());
+            orderItem.setOrder(order);
+
+            // Validate inventory availability
+            List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(itemDTO.getProductId());
+            int totalAvailableQuantity = batches.stream().mapToInt(ProductBatch::getQuantity).sum();
+            if (totalAvailableQuantity < itemDTO.getQuantity()) {
+                inventoryWarnings.add("Insufficient stock for product ID: " + itemDTO.getProductId() +
+                        ". Required: " + itemDTO.getQuantity() + ", Available: " + totalAvailableQuantity);
+                throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
+            }
+
+            // Since status is COMPLETED, deduct inventory immediately (FIFO)
+            int remainingQuantity = itemDTO.getQuantity();
+            ProductBatch selectedBatch = null;
+
+            for (ProductBatch batch : batches) {
+                if (remainingQuantity <= 0) break;
+                if (batch.getQuantity() > 0) {
+                    int quantityToTake = Math.min(remainingQuantity, batch.getQuantity());
+                    batch.setQuantity(batch.getQuantity() - quantityToTake);
+                    remainingQuantity -= quantityToTake;
+                    selectedBatch = batch;
+                    productBatchRepository.save(batch);
+                }
+            }
+
+            if (remainingQuantity > 0) {
+                inventoryWarnings.add("Insufficient stock for product ID: " + itemDTO.getProductId() +
+                        ". Required: " + itemDTO.getQuantity() + ", Fulfilled: " + (itemDTO.getQuantity() - remainingQuantity));
+                throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
+            }
+
+            if (selectedBatch != null) {
+                orderItem.setBatch(selectedBatch);
+                orderItem.setSellingPrice(selectedBatch.getSellingPrice());
+            } else {
+                inventoryWarnings.add("No stock available for product ID: " + itemDTO.getProductId());
+                throw new RuntimeException("No stock available for product ID: " + itemDTO.getProductId());
+            }
+
+            orderItems.add(orderItem);
+        }
+
+        order.setItems(orderItems);
+        if (inventoryWarnings.isEmpty()) {
+            order.setInventoryAdjusted(true);
+        }
+
         Order savedOrder = orderRepository.save(order);
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
@@ -130,10 +204,9 @@ public class OrderService {
         boolean isInventoryAdjusted = order.getInventoryAdjusted() != null ? order.getInventoryAdjusted() : false;
         List<String> inventoryWarnings = new ArrayList<>();
 
-        // Deduct inventory when transitioning to COMPLETED
-        if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted) {
+        // Only adjust inventory for ECOMMERCE orders when status changes to COMPLETED
+        if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted && order.getOrderType() == Order.OrderType.ECOMMERCE) {
             for (OrderItem item : order.getItems()) {
-                // Find batches for this product (FIFO)
                 List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(item.getProductId());
                 int remainingQuantity = item.getQuantity();
                 ProductBatch selectedBatch = null;
@@ -167,7 +240,6 @@ public class OrderService {
             }
         }
 
-        // Restock inventory when transitioning to CANCELLED
         if (newStatus == Order.Status.CANCELLED && isInventoryAdjusted) {
             for (OrderItem item : order.getItems()) {
                 ProductBatch batch = item.getBatch();
@@ -185,13 +257,13 @@ public class OrderService {
         }
 
         order.setStatus(newStatus);
-        Order updatedOrder = orderRepository.save(order);
-        OrderDTO orderDTO = convertToDTO(updatedOrder);
+        Order savedOrder = orderRepository.save(order);
+        OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
         if (!inventoryWarnings.isEmpty()) {
-            orderDTO.setWarnings(inventoryWarnings);
+            savedOrderDTO.setWarnings(inventoryWarnings);
         }
-        return orderDTO;
+        return savedOrderDTO;
     }
 
     private OrderDTO convertToDTO(Order order) {
@@ -203,6 +275,7 @@ public class OrderService {
         orderDTO.setStatus(order.getStatus().name());
         orderDTO.setOrderDate(order.getOrderDate());
         orderDTO.setInventoryAdjusted(order.getInventoryAdjusted());
+        orderDTO.setOrderType(order.getOrderType() != null ? order.getOrderType().name() : null);
 
         List<OrderItemDTO> itemDTOs = order.getItems().stream().map(item -> {
             OrderItemDTO itemDTO = new OrderItemDTO();

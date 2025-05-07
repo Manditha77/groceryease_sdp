@@ -22,6 +22,10 @@ public class Order {
         PENDING, PROCESSING, COMPLETED, CANCELLED
     }
 
+    public enum OrderType {
+        ECOMMERCE, POS
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long orderId;
@@ -52,4 +56,8 @@ public class Order {
      */
     @Column(name = "inventory_adjusted")
     private Boolean inventoryAdjusted = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type")
+    private OrderType orderType;
 }
