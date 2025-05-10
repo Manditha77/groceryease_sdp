@@ -51,18 +51,15 @@ function ProductList() {
     const itemsPerPage = 6;
 
     useEffect(() => {
-        // Simulate network request
         setLoading(true);
         productServices.getAllProducts()
             .then((response) => {
-                // Add sample ratings for demonstration
-                const productsWithRatings = response.data.map((product) => ({
+                const productsWithDescriptions = response.data.map((product) => ({
                     ...product,
-                    rating: Math.floor(Math.random() * 5) + 1,
                     description: generateSampleDescription(product.categoryName),
                 }));
-                setProducts(productsWithRatings);
-                setFilteredProducts(productsWithRatings);
+                setProducts(productsWithDescriptions);
+                setFilteredProducts(productsWithDescriptions);
                 setLoading(false);
             })
             .catch((error) => {
@@ -105,7 +102,6 @@ function ProductList() {
             ],
         };
 
-        // Default description if category not found
         const defaultDescriptions = [
             'High-quality product selected for optimal freshness and value.',
             'Premium product made with carefully chosen ingredients.',
@@ -127,22 +123,18 @@ function ProductList() {
     const categories = ['All', ...new Set(products.map(product => product.categoryName))];
 
     useEffect(() => {
-        // Apply filtering and sorting
         let result = [...products];
 
-        // Filter by search term
         if (searchTerm) {
             result = result.filter(product =>
                 product.productName.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
-        // Filter by category
         if (selectedCategory !== 'All') {
             result = result.filter(product => product.categoryName === selectedCategory);
         }
 
-        // Filter by price range
         if (minPrice !== '') {
             result = result.filter(product => product.sellingPrice >= parseFloat(minPrice));
         }
@@ -150,12 +142,10 @@ function ProductList() {
             result = result.filter(product => product.sellingPrice <= parseFloat(maxPrice));
         }
 
-        // Filter by stock
         if (inStockOnly) {
             result = result.filter(product => product.quantity > 0);
         }
 
-        // Apply sorting
         switch (sortOption) {
             case 'priceLow':
                 result.sort((a, b) => a.sellingPrice - b.sellingPrice);
@@ -170,13 +160,10 @@ function ProductList() {
                 result.sort((a, b) => b.productName.localeCompare(b.productName));
                 break;
             default:
-                // Default sorting (could be by popularity or featured)
                 break;
         }
 
         setFilteredProducts(result);
-
-        // Reset to first page when filters change
         setPage(1);
     }, [searchTerm, selectedCategory, products, sortOption, minPrice, maxPrice, inStockOnly]);
 
@@ -212,11 +199,9 @@ function ProductList() {
 
     const handlePageChange = (event, value) => {
         setPage(value);
-        // Scroll to top on page change
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Pagination
     const paginatedProducts = filteredProducts.slice(
         (page - 1) * itemsPerPage,
         page * itemsPerPage

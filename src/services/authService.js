@@ -1,4 +1,3 @@
-// groceryease-frontend/src/services/authService.js
 import axios from 'axios';
 
 const API_URL_USER = 'http://localhost:8080/api/auth';
@@ -6,14 +5,18 @@ const API_URL_SUPPLIER = 'http://localhost:8080/api/supplier';
 
 const login = async (username, password) => {
     const response = await axios.post(`${API_URL_USER}/login`, { username, password });
-    return response.data; // Response includes user details and userType
+    if (response.data.token) {
+        localStorage.setItem('authToken', response.data.token);
+        localStorage.setItem('username', username);
+    }
+    return response.data;
 };
 
 const getEmployees = async () => {
     const token = localStorage.getItem('authToken');
     const response = await axios.get(`${API_URL_USER}/employees`, {
         headers: {
-            Authorization: `Bearer ${token}`, // Add token for authentication
+            Authorization: `Bearer ${token}`,
         }
     });
     return response.data;
@@ -23,13 +26,13 @@ const getUser = async (username) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.get(`${API_URL_USER}/users/${username}`, {
         headers: {
-            Authorization: `Bearer ${token}`, // Add token for authentication
+            Authorization: `Bearer ${token}`,
         }
     });
     return response.data;
 };
 
-const register = async (firstName, lastName, email, phoneNo, address, userType, username, password) => {
+const register = async (firstName, lastName, email, phoneNo, address, userType, username, password, customerType) => {
     const response = await axios.post(`${API_URL_USER}/register`, {
         firstName,
         lastName,
@@ -39,6 +42,7 @@ const register = async (firstName, lastName, email, phoneNo, address, userType, 
         userType,
         username,
         password,
+        customerType,
     });
     return response.data;
 };
@@ -72,7 +76,7 @@ const getSuppliers = async () => {
     const token = localStorage.getItem('authToken');
     const response = await axios.get(`${API_URL_SUPPLIER}/all`, {
         headers: {
-            Authorization: `Bearer ${token}`, // Add token for authentication
+            Authorization: `Bearer ${token}`,
         }
     });
     return response.data;
@@ -89,7 +93,7 @@ const registerSupplier = async (firstName, lastName, email, phoneNo, companyName
     });
     return response.data;
 };
-// authService.js
+
 const updateSupplier = async (userId, firstName, lastName, email, phoneNo, companyName) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.put(`${API_URL_SUPPLIER}/update/${userId}`, {

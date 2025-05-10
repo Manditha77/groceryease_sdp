@@ -1,8 +1,8 @@
 import axios from 'axios';
 import defaultImage from '../images/unnamed.jpg';
 
-const API_URL_PRODUCT = 'http://192.168.1.163:8080/api/products';
-const BARCODE_URL = 'http://192.168.1.163:8080/api/barcodes';
+const API_URL_PRODUCT = 'http://localhost:8080/api/products';
+const BARCODE_URL = 'http://localhost:8080/api/barcodes';
 
 const getAllProducts = () => {
     return axios.get(API_URL_PRODUCT);

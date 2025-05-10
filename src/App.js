@@ -15,8 +15,9 @@ import ProductList from './pages/ProductList';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import PosTerminal from './pages/PosTerminal';
-import MobileScanner from './pages/MobileScanner'; // Import MobileScanner
-import { CartProvider } from './CartContext';
+import MobileScanner from './pages/MobileScanner';
+import MyOrders from './pages/MyOrders';
+import {CartProvider} from "./CartContext";
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('authToken'));
@@ -42,7 +43,7 @@ function App() {
                             {/* Public routes */}
                             <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} />} />
                             <Route path="/register" element={<Register />} />
-                            <Route path="/mobile-scan" element={<MobileScanner />} /> {/* Added public route for mobile scanning */}
+                            <Route path="/mobile-scan" element={<MobileScanner />} />
 
                             {/* Routes for OWNER and EMPLOYEE */}
                             <Route
@@ -152,6 +153,16 @@ function App() {
                                 element={
                                     isAuthenticated && userType === 'CUSTOMER' ? (
                                         <Checkout />
+                                    ) : (
+                                        <Navigate to="/login" />
+                                    )
+                                }
+                            />
+                            <Route
+                                path="/my-orders"
+                                element={
+                                    isAuthenticated && userType === 'CUSTOMER' ? (
+                                        <MyOrders />
                                     ) : (
                                         <Navigate to="/login" />
                                     )

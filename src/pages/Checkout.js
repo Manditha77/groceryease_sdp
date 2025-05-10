@@ -19,21 +19,23 @@ import {
     Stepper,
     Step,
     StepLabel,
-    Divider,
     Alert,
     Collapse,
     CircularProgress,
     FormHelperText,
     FormControlLabel,
     Checkbox,
-    SelectChangeEvent,
 } from '@mui/material';
 import { ArrowBack, Close, Check } from '@mui/icons-material';
 import { CartContext } from '../CartContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import orderServices from '../services/orderServices';
+import authServices from '../services/authService';
 import { motion } from 'framer-motion';
 import OrderSummary from '../components/OrderSummary';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe('pk_test_51RMcPNCY4xnSZ3lWSnSKx3a9pRwhG1fbZzNBdL4R27I1rVgLqH7nKIYPlJrYjiHDRAHfeSKJQWwNTtEvJmslviBg00Fppyvow8');
 
 const initialFormData = {
     customerName: '',
@@ -56,51 +58,101 @@ function Checkout() {
     const [orderId, setOrderId] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [sessionId, setSessionId] = useState(null);
 
     const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
-        // Check if cart is empty
-        if (cartItems.length === 0 && !orderSuccess) {
-            navigate('/cart');
-        }
+        const params = new URLSearchParams(location.search);
+        const paymentStatus = params.get('payment');
 
-        // Load saved customer information from localStorage
-        const savedCustomerInfo = localStorage.getItem('customerInfo');
-        if (savedCustomerInfo) {
+        // Restore formData and cartItems from localStorage if payment redirect occurred
+        const savedFormData = localStorage.getItem('checkoutFormData');
+        const savedCartItems = localStorage.getItem('checkoutCartItems');
+        if (savedFormData && savedCartItems) {
             try {
-                const parsedInfo = JSON.parse(savedCustomerInfo);
-                setFormData(prev => ({
-                    ...prev,
-                    customerName: parsedInfo.customerName || '',
-                    email: parsedInfo.email || '',
-                    phone: parsedInfo.phone || '',
-                    saveInformation: true,
-                }));
+                setFormData(JSON.parse(savedFormData));
+                setCartItems(JSON.parse(savedCartItems));
             } catch (error) {
-                console.error('Error parsing saved customer info:', error);
+                console.error('Error parsing saved checkout data:', error);
             }
         }
 
-        // Generate available pickup dates
+        if (paymentStatus === 'success') {
+            handlePaymentSuccess();
+        } else if (paymentStatus === 'cancel') {
+            setErrorMessage('Payment was cancelled. Please try again.');
+            setActiveStep(1);
+        }
+
+        if (cartItems.length === 0 && !orderSuccess && !savedCartItems) {
+            navigate('/cart');
+        }
+
+        const fetchUserDetails = async () => {
+            const username = localStorage.getItem('username');
+            const token = localStorage.getItem('authToken');
+
+            if (username && token) {
+                try {
+                    const response = await authServices.getUser(username);
+                    if (response && Object.keys(response).length > 0) {
+                        const userData = response;
+                        setFormData(prev => ({
+                            ...prev,
+                            customerName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+                            email: userData.email || '',
+                            phone: userData.phoneNo || '',
+                            saveInformation: false,
+                        }));
+                        setIsLoggedIn(true);
+                    } else {
+                        console.error('Failed to fetch user data: Empty response');
+                        loadSavedCustomerInfo();
+                    }
+                } catch (error) {
+                    console.error('Error fetching user details:', error.response ? error.response.data : error.message);
+                    loadSavedCustomerInfo();
+                }
+            } else {
+                loadSavedCustomerInfo();
+            }
+        };
+
+        const loadSavedCustomerInfo = () => {
+            const savedCustomerInfo = localStorage.getItem('customerInfo');
+            if (savedCustomerInfo) {
+                try {
+                    const parsedInfo = JSON.parse(savedCustomerInfo);
+                    setFormData(prev => ({
+                        ...prev,
+                        customerName: parsedInfo.customerName || '',
+                        email: parsedInfo.email || '',
+                        phone: parsedInfo.phone || '',
+                        saveInformation: true,
+                    }));
+                } catch (error) {
+                    console.error('Error parsing saved customer info:', error);
+                }
+            }
+        };
+
+        fetchUserDetails();
         generatePickupDates();
-    }, [cartItems.length, navigate, orderSuccess]);
+    }, [navigate, orderSuccess, location.search]);
 
-    // Calculate totals
-    const totalPrice = cartItems.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
+    const totalPrice = cartItems.reduce((sum, item) => sum + (item.sellingPrice || 0) * (item.quantity || 0), 0);
 
-    // Generate available pickup dates (next 7 days)
     const generatePickupDates = () => {
         const today = new Date();
         const availableDates = [];
-
-        // Start from tomorrow
-        for (let i = 1; i <= 7; i++) {
+        for (let i = 0; i <= 7; i++) {
             const date = new Date();
             date.setDate(today.getDate() + i);
             availableDates.push(date);
         }
-
         return availableDates.map(date => ({
             value: date.toISOString().split('T')[0],
             label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
@@ -109,10 +161,7 @@ function Checkout() {
 
     const availablePickupDates = generatePickupDates();
 
-    // Available pickup time slots
     const availablePickupTimes = [
-        { value: '10:00', label: '10:00 AM' },
-        { value: '11:00', label: '11:00 AM' },
         { value: '12:00', label: '12:00 PM' },
         { value: '13:00', label: '1:00 PM' },
         { value: '14:00', label: '2:00 PM' },
@@ -120,6 +169,11 @@ function Checkout() {
         { value: '16:00', label: '4:00 PM' },
         { value: '17:00', label: '5:00 PM' },
         { value: '18:00', label: '6:00 PM' },
+        { value: '19:00', label: '7:00 PM' },
+        { value: '20:00', label: '8:00 PM' },
+        { value: '21:00', label: '9:00 PM' },
+        { value: '22:00', label: '10:00 PM' },
+        { value: '23:00', label: '11:00 PM' },
     ];
 
     const validateForm = () => {
@@ -199,8 +253,7 @@ function Checkout() {
         setErrorMessage('');
 
         if (formData.paymentMethod === 'Online Payment') {
-            setPaymentDialogOpen(true);
-            setIsSubmitting(false);
+            await handleOnlinePayment();
             return;
         }
 
@@ -211,15 +264,12 @@ function Checkout() {
         setIsSubmitting(true);
 
         try {
-            // Save customer information if opted in
-            if (formData.saveInformation) {
+            if (formData.saveInformation && !isLoggedIn) {
                 localStorage.setItem('customerInfo', JSON.stringify({
                     customerName: formData.customerName,
                     email: formData.email,
                     phone: formData.phone,
                 }));
-
-                // Also save the username for other parts of the app
                 localStorage.setItem('username', formData.customerName);
             }
 
@@ -237,11 +287,10 @@ function Checkout() {
                 })),
                 totalAmount: totalPrice,
                 status: 'PENDING',
+                username: localStorage.getItem('username'),
             };
 
             const response = await orderServices.createOrder(order);
-            console.log('Order creation response:', response);
-
             if (!response.data.success) {
                 throw new Error('Order creation failed according to backend response');
             }
@@ -252,19 +301,16 @@ function Checkout() {
                 throw new Error('Order ID not returned from backend');
             }
 
-            // Clear cart and show success message
             setCartItems([]);
             localStorage.removeItem('cart');
             setOrderId(orderIdFromResponse);
             setOrderSuccess(true);
             setActiveStep(2);
+            navigate('/my-orders');
         } catch (error) {
             console.error('Error placing pre-order:', error);
-
-            // Handle validation errors from backend
             if (error.response && error.response.status === 400) {
                 const errorData = error.response.data;
-                // Convert error object to a readable string
                 const errorMessages = typeof errorData === 'object'
                     ? Object.values(errorData).join('; ')
                     : errorData;
@@ -278,9 +324,127 @@ function Checkout() {
         }
     };
 
-    const handlePaymentConfirm = () => {
-        setPaymentDialogOpen(false);
-        submitOrder();
+    const handleOnlinePayment = async () => {
+        setIsSubmitting(true);
+        setErrorMessage('');
+
+        try {
+            // Save formData and cartItems to localStorage before redirecting to Stripe
+            localStorage.setItem('checkoutFormData', JSON.stringify(formData));
+            localStorage.setItem('checkoutCartItems', JSON.stringify(cartItems));
+
+            const stripeResponse = await fetch('http://localhost:8080/api/stripe/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: Math.round(totalPrice * 100),
+                    currency: 'lkr',
+                    customerName: formData.customerName,
+                    email: formData.email,
+                    phone: formData.phone,
+                    pickupDate: formData.pickupDate,
+                    pickupTime: formData.pickupTime,
+                    paymentMethod: formData.paymentMethod,
+                    notes: formData.notes,
+                    items: cartItems.map((item) => ({
+                        productId: item.productId,
+                        quantity: item.quantity
+                    })),
+                    totalAmount: totalPrice,
+                    username: localStorage.getItem('username'),
+                }),
+            });
+
+            if (!stripeResponse.ok) {
+                const errorData = await stripeResponse.json();
+                throw new Error(errorData.message || 'Failed to create Stripe Checkout Session');
+            }
+
+            const { sessionId } = await stripeResponse.json();
+            if (!sessionId) {
+                throw new Error('Session ID not returned from backend');
+            }
+
+            setSessionId(sessionId);
+            const stripe = await stripePromise;
+            const { error } = await stripe.redirectToCheckout({ sessionId });
+
+            if (error) {
+                setErrorMessage(error.message || 'Failed to initiate payment. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error initiating payment:', error);
+            setErrorMessage(error.message || 'Failed to process payment. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handlePaymentSuccess = async () => {
+        setIsSubmitting(true);
+        try {
+            // Retrieve saved data from localStorage
+            const savedFormData = JSON.parse(localStorage.getItem('checkoutFormData') || '{}');
+            const savedCartItems = JSON.parse(localStorage.getItem('checkoutCartItems') || '[]');
+
+            // Validate the data
+            if (!savedFormData.customerName || !savedCartItems.length) {
+                throw new Error('Invalid order data. Please try placing the order again.');
+            }
+
+            const savedTotalPrice = savedCartItems.reduce((sum, item) => {
+                const price = item.sellingPrice || 0;
+                const quantity = item.quantity || 0;
+                return sum + price * quantity;
+            }, 0);
+
+            if (savedTotalPrice === 0) {
+                throw new Error('Total amount cannot be zero. Please check your cart items.');
+            }
+
+            const order = {
+                customerName: savedFormData.customerName,
+                email: savedFormData.email || '',
+                phone: savedFormData.phone || '',
+                pickupDate: savedFormData.pickupDate || '',
+                pickupTime: savedFormData.pickupTime || '',
+                paymentMethod: 'Online Payment',
+                notes: savedFormData.notes || '',
+                items: savedCartItems.map((item) => ({
+                    productId: item.productId,
+                    quantity: item.quantity
+                })),
+                totalAmount: savedTotalPrice,
+                status: 'PENDING',
+                username: localStorage.getItem('username'),
+            };
+
+            const response = await orderServices.createOrder(order);
+            if (!response.data.success) {
+                throw new Error('Order creation failed after payment');
+            }
+
+            const orderIdFromResponse = response.data.order?.orderId;
+            if (!orderIdFromResponse) {
+                console.error('Order ID not found in response:', response.data);
+                throw new Error('Order ID not returned from backend');
+            }
+
+            // Clear saved data and cart
+            localStorage.removeItem('checkoutFormData');
+            localStorage.removeItem('checkoutCartItems');
+            setCartItems([]);
+            localStorage.removeItem('cart');
+            setOrderId(orderIdFromResponse);
+            setOrderSuccess(true);
+            setActiveStep(2);
+            navigate('/my-orders');
+        } catch (error) {
+            console.error('Error creating order after payment:', error);
+            setErrorMessage(error.message || 'Failed to create order after successful payment. Please contact support.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const steps = ['Customer Information', 'Review Order', 'Confirmation'];
@@ -295,7 +459,6 @@ function Checkout() {
                                 Customer Information
                             </Typography>
                         </Grid>
-
                         <Grid item xs={12}>
                             <TextField
                                 label="Full Name"
@@ -306,10 +469,10 @@ function Checkout() {
                                 required
                                 error={!!errors.customerName}
                                 helperText={errors.customerName}
+                                InputProps={{ readOnly: isLoggedIn }}
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             />
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                             <TextField
                                 label="Email"
@@ -321,10 +484,10 @@ function Checkout() {
                                 required
                                 error={!!errors.email}
                                 helperText={errors.email}
+                                InputProps={{ readOnly: isLoggedIn }}
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             />
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                             <TextField
                                 label="Phone Number"
@@ -335,16 +498,15 @@ function Checkout() {
                                 required
                                 error={!!errors.phone}
                                 helperText={errors.phone}
+                                InputProps={{ readOnly: isLoggedIn }}
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             />
                         </Grid>
-
                         <Grid item xs={12}>
                             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                                 Pickup Details
                             </Typography>
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth error={!!errors.pickupDate}>
                                 <InputLabel>Pickup Date*</InputLabel>
@@ -364,7 +526,6 @@ function Checkout() {
                                 {errors.pickupDate && <FormHelperText>{errors.pickupDate}</FormHelperText>}
                             </FormControl>
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth error={!!errors.pickupTime}>
                                 <InputLabel>Pickup Time*</InputLabel>
@@ -384,7 +545,6 @@ function Checkout() {
                                 {errors.pickupTime && <FormHelperText>{errors.pickupTime}</FormHelperText>}
                             </FormControl>
                         </Grid>
-
                         <Grid item xs={12}>
                             <TextField
                                 label="Additional Notes (optional)"
@@ -397,19 +557,20 @@ function Checkout() {
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             />
                         </Grid>
-
                         <Grid item xs={12}>
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        checked={formData.saveInformation}
-                                        onChange={handleCheckboxChange}
-                                        name="saveInformation"
-                                        color="primary"
-                                    />
-                                }
-                                label="Save this information for next time"
-                            />
+                            {!isLoggedIn && (
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={formData.saveInformation}
+                                            onChange={handleCheckboxChange}
+                                            name="saveInformation"
+                                            color="primary"
+                                        />
+                                    }
+                                    label="Save this information for next time"
+                                />
+                            )}
                         </Grid>
                     </Grid>
                 );
@@ -421,7 +582,6 @@ function Checkout() {
                                 Order Review
                             </Typography>
                         </Grid>
-
                         <Grid item xs={12}>
                             <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #eaeaea' }}>
                                 <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
@@ -430,7 +590,6 @@ function Checkout() {
                                 <Typography variant="body2">Name: {formData.customerName}</Typography>
                                 <Typography variant="body2">Email: {formData.email}</Typography>
                                 <Typography variant="body2">Phone: {formData.phone}</Typography>
-
                                 <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
                                     Pickup Details
                                 </Typography>
@@ -444,7 +603,6 @@ function Checkout() {
                                 <Typography variant="body2">
                                     Time: {availablePickupTimes.find(t => t.value === formData.pickupTime)?.label || formData.pickupTime}
                                 </Typography>
-
                                 {formData.notes && (
                                     <>
                                         <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
@@ -455,12 +613,10 @@ function Checkout() {
                                 )}
                             </Paper>
                         </Grid>
-
                         <Grid item xs={12}>
                             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                                 Payment Method
                             </Typography>
-
                             <FormControl fullWidth>
                                 <Select
                                     value={formData.paymentMethod}
@@ -498,20 +654,16 @@ function Checkout() {
                                 <Check sx={{ fontSize: 40, color: '#2e7d32' }} />
                             </Box>
                         </motion.div>
-
                         <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
                             Order Placed Successfully!
                         </Typography>
-
                         <Typography variant="body1" paragraph>
                             Your pre-order has been placed successfully. We'll have your items ready for pickup.
                         </Typography>
-
                         <Box sx={{ bgcolor: '#f5f5f5', p: 3, my: 3, borderRadius: 2 }}>
                             <Typography variant="body1" gutterBottom sx={{ fontWeight: 'bold' }}>
                                 Order ID: {orderId}
                             </Typography>
-
                             <Typography variant="body1">
                                 Pickup Date: {new Date(formData.pickupDate).toLocaleDateString('en-US', {
                                 weekday: 'long',
@@ -519,41 +671,28 @@ function Checkout() {
                                 day: 'numeric',
                             })}
                             </Typography>
-
                             <Typography variant="body1">
                                 Pickup Time: {availablePickupTimes.find(t => t.value === formData.pickupTime)?.label || formData.pickupTime}
                             </Typography>
                         </Box>
-
                         <Typography variant="body2" paragraph>
                             A confirmation email has been sent to {formData.email}.
                             Please bring your Order ID when you pick up your order.
                         </Typography>
-
                         <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
                             <Button
-                                variant="outlined"
-                                onClick={() => navigate('/orders')}
-                                sx={{
-                                    borderRadius: 8,
-                                    px: 3,
-                                    py: 1.2,
-                                    textTransform: 'none'
-                                }}
+                                variant="contained"
+                                color="primary"
+                                onClick={() => navigate('/my-orders')}
+                                sx={{ borderRadius: 8, px: 3, py: 1.2, textTransform: 'none' }}
                             >
                                 View My Orders
                             </Button>
-
                             <Button
                                 variant="contained"
                                 color="primary"
                                 onClick={() => navigate('/product-list')}
-                                sx={{
-                                    borderRadius: 8,
-                                    px: 3,
-                                    py: 1.2,
-                                    textTransform: 'none'
-                                }}
+                                sx={{ borderRadius: 8, px: 3, py: 1.2, textTransform: 'none' }}
                             >
                                 Continue Shopping
                             </Button>
@@ -568,7 +707,7 @@ function Checkout() {
     return (
         <Container maxWidth="lg" sx={{ py: 4 }}>
             {!orderSuccess && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, paddingTop: 2 }}>
                     <IconButton
                         onClick={() => navigate(-1)}
                         sx={{ mr: 1 }}
@@ -581,7 +720,6 @@ function Checkout() {
                     </Typography>
                 </Box>
             )}
-
             <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
                 {steps.map((label) => (
                     <Step key={label}>
@@ -589,7 +727,6 @@ function Checkout() {
                     </Step>
                 ))}
             </Stepper>
-
             <Collapse in={!!errorMessage}>
                 <Alert
                     severity="error"
@@ -608,19 +745,10 @@ function Checkout() {
                     {errorMessage}
                 </Alert>
             </Collapse>
-
             <Grid container spacing={4}>
                 <Grid item xs={12} md={8}>
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            p: 3,
-                            borderRadius: 2,
-                            border: '1px solid #eaeaea',
-                        }}
-                    >
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #eaeaea' }}>
                         {renderStepContent(activeStep)}
-
                         {activeStep < 2 && (
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
                                 <Button
@@ -629,18 +757,12 @@ function Checkout() {
                                 >
                                     {activeStep === 0 ? 'Back to Cart' : 'Back'}
                                 </Button>
-
                                 <Button
                                     variant="contained"
                                     color="primary"
                                     onClick={handleSubmit}
                                     disabled={isSubmitting}
-                                    sx={{
-                                        borderRadius: 8,
-                                        px: 4,
-                                        py: 1.2,
-                                        textTransform: 'none',
-                                    }}
+                                    sx={{ borderRadius: 8, px: 4, py: 1.2, textTransform: 'none' }}
                                 >
                                     {isSubmitting ? (
                                         <CircularProgress size={24} color="inherit" />
@@ -652,108 +774,10 @@ function Checkout() {
                         )}
                     </Paper>
                 </Grid>
-
                 <Grid item xs={12} md={4}>
-                    <OrderSummary
-                        cartItems={cartItems}
-                        showActionButton={false}
-                        isCheckout={true}
-                    />
+                    <OrderSummary cartItems={cartItems} showActionButton={false} isCheckout={true} />
                 </Grid>
             </Grid>
-
-            {/* Payment Dialog */}
-            <Dialog
-                open={paymentDialogOpen}
-                onClose={() => !isSubmitting && setPaymentDialogOpen(false)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle>
-                    Payment Details
-                    <IconButton
-                        aria-label="close"
-                        onClick={() => !isSubmitting && setPaymentDialogOpen(false)}
-                        sx={{
-                            position: 'absolute',
-                            right: 8,
-                            top: 8,
-                        }}
-                        disabled={isSubmitting}
-                    >
-                        <Close />
-                    </IconButton>
-                </DialogTitle>
-
-                <DialogContent dividers>
-                    <Typography variant="subtitle1" gutterBottom>
-                        Total Amount: Rs.{totalPrice.toFixed(2)}
-                    </Typography>
-
-                    <Grid container spacing={2} sx={{ mt: 1 }}>
-                        <Grid item xs={12}>
-                            <TextField
-                                label="Card Number"
-                                fullWidth
-                                placeholder="1234 5678 9012 3456"
-                                inputProps={{ maxLength: 19 }}
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                            />
-                        </Grid>
-
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                label="Expiry Date"
-                                fullWidth
-                                placeholder="MM/YY"
-                                inputProps={{ maxLength: 5 }}
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                            />
-                        </Grid>
-
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                label="CVC"
-                                fullWidth
-                                placeholder="123"
-                                inputProps={{ maxLength: 3 }}
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                            />
-                        </Grid>
-
-                        <Grid item xs={12}>
-                            <TextField
-                                label="Name on Card"
-                                fullWidth
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                            />
-                        </Grid>
-                    </Grid>
-
-                    <Typography variant="caption" sx={{ display: 'block', mt: 2, color: 'text.secondary' }}>
-                        This is a demo payment form. No actual payment will be processed.
-                    </Typography>
-                </DialogContent>
-
-                <DialogActions sx={{ p: 2 }}>
-                    <Button
-                        onClick={() => !isSubmitting && setPaymentDialogOpen(false)}
-                        disabled={isSubmitting}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handlePaymentConfirm}
-                        variant="contained"
-                        color="primary"
-                        disabled={isSubmitting}
-                        startIcon={isSubmitting ? <CircularProgress size={20} /> : undefined}
-                        sx={{ borderRadius: 8, textTransform: 'none' }}
-                    >
-                        {isSubmitting ? 'Processing...' : 'Pay Now'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </Container>
     );
 }

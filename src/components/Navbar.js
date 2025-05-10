@@ -83,6 +83,14 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                                         Shop
                                     </StyledLink>
                                 </Button>
+                                <Button color="inherit" sx={{ textTransform: 'none' }}>
+                                    <StyledLink
+                                        to="/my-orders"
+                                        active={location.pathname === '/my-orders'}
+                                    >
+                                        My Orders
+                                    </StyledLink>
+                                </Button>
                                 <IconButton
                                     component={Link}
                                     to="/cart"

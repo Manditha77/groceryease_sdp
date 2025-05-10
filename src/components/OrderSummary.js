@@ -38,30 +38,17 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
                                                    }) => {
     const [expanded, setExpanded] = React.useState(false);
 
-    // Calculate totals
+    // Calculate subtotal
     const subtotal = cartItems.reduce(
         (sum, item) => sum + item.sellingPrice * item.quantity,
         0
     );
 
-    // Assuming 13% tax rate (this could be moved to a config)
-    const taxRate = 0.13;
-    const tax = subtotal * taxRate;
-    const total = subtotal + tax;
+    // Total equals subtotal (no tax)
+    const total = subtotal;
 
-    // Estimated delivery time in days
-    const estimatedDeliveryDays = 2;
-
-    // Calculate delivery date
-    const deliveryDate = new Date();
-    deliveryDate.setDate(deliveryDate.getDate() + estimatedDeliveryDays);
-
-    // Format date to a readable string
-    const formattedDate = deliveryDate.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-    });
+    // Set estimated pickup to today (May 08, 2025)
+    const formattedDate = 'May 08, 2025';
 
     return (
         <Paper
@@ -120,11 +107,6 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant="body2" color="text.secondary">Subtotal</Typography>
                     <Typography variant="body2">Rs.{subtotal.toFixed(2)}</Typography>
-                </Box>
-
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">Tax (13%)</Typography>
-                    <Typography variant="body2">Rs.{tax.toFixed(2)}</Typography>
                 </Box>
 
                 <Divider sx={{ my: 2 }} />

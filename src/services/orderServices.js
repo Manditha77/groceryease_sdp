@@ -44,6 +44,9 @@ const orderServices = {
     updateOrderStatus: (orderId, status) => {
         return axiosInstance.put(`/${orderId}/status`, { status });
     },
+    getOrdersByCustomer: (customerName) => {
+        return axiosInstance.get(`/customer/${customerName}`);
+    },
 };
 
 export default orderServices;

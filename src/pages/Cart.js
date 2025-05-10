@@ -189,9 +189,10 @@ function Cart() {
                     <OrderSummary
                         cartItems={cartItems}
                         onAction={() => navigate('/checkout')}
+                        noTax={true} // Indicate that tax should not be included
                     />
 
-                    {/* Pickup Information */}
+                     {/*Pickup Information */}
                     <Paper
                         elevation={0}
                         sx={{
@@ -205,16 +206,16 @@ function Cart() {
                             Pickup Information
                         </Typography>
                         <Typography variant="body2" paragraph>
-                            Orders are available for pickup during our store hours once you receive a confirmation email.
+                            Orders are available for pickup on the estimated date during our store hours.
                         </Typography>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0478C0' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0478C0', mt: 2 }}>
                             Store Hours:
                         </Typography>
                         <Typography variant="body2">
-                            Mon-Fri: 9:00 AM - 8:00 PM
+                            Mon-Fri: 11:00 AM - 12:00 PM
                         </Typography>
                         <Typography variant="body2">
-                            Sat-Sun: 10:00 AM - 6:00 PM
+                            Sat-Sun: 10:00 AM - 12:00 PM
                         </Typography>
                     </Paper>
                 </Grid>

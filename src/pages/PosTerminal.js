@@ -3,11 +3,12 @@ import { useReactToPrint } from 'react-to-print';
 import {
     Box, Typography, Button, TextField, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Paper, Snackbar, Alert, MenuItem, Select, FormControl, InputLabel,
-    Grid, Divider, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions
+    Grid, Divider, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { Html5QrcodeScanner } from "html5-qrcode";
 import productService from '../services/productServices';
 import orderServices from '../services/orderServices';
+import authService from '../services/authService';
 
 const PosTerminal = () => {
     const [cart, setCart] = useState([]);
@@ -15,7 +16,15 @@ const PosTerminal = () => {
     const [barcode, setBarcode] = useState('');
     const [totalAmount, setTotalAmount] = useState(0);
     const [customerName, setCustomerName] = useState('POS Customer');
-    const [paymentMethod, setPaymentMethod] = useState('CASH');
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
+    const [creditCustomerDetails, setCreditCustomerDetails] = useState({
+        firstName: '',
+        lastName: '',
+        phone: '',
+        email: '',
+        address: '',
+    });
+    const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [openSnackbar, setOpenSnackbar] = useState(false);
@@ -240,15 +249,67 @@ const PosTerminal = () => {
         setOpenPaymentDialog(true);
     };
 
+    const validateCreditCustomerDetails = () => {
+        const newErrors = {};
+        let isValid = true;
+
+        if (!creditCustomerDetails.firstName.trim()) {
+            newErrors.firstName = 'First name is required';
+            isValid = false;
+        }
+        if (!creditCustomerDetails.lastName.trim()) {
+            newErrors.lastName = 'Last name is required';
+            isValid = false;
+        }
+        if (!creditCustomerDetails.phone.trim()) {
+            newErrors.phone = 'Phone number is required';
+            isValid = false;
+        } else if (!/^\d{10}$/.test(creditCustomerDetails.phone.replace(/\D/g, ''))) {
+            newErrors.phone = 'Please enter a valid 10-digit phone number';
+            isValid = false;
+        }
+        if (!creditCustomerDetails.address.trim()) {
+            newErrors.address = 'Address is required';
+            isValid = false;
+        }
+
+        setErrors(newErrors);
+        return isValid;
+    };
+
+    const handleCreditCustomerInputChange = (e) => {
+        const { name, value } = e.target;
+        setCreditCustomerDetails({ ...creditCustomerDetails, [name]: value });
+    };
+
     const confirmPayment = async () => {
         if (cart.length === 0) {
             setErrorMessage('Cart is empty.');
             setOpenSnackbar(true);
             return;
         }
+
+        let finalCustomerName = customerName || 'POS Customer';
+
+        if (paymentMethod === 'Credit Purpose') {
+            const isValid = validateCreditCustomerDetails();
+            if (!isValid) {
+                return;
+            }
+
+            try {
+                finalCustomerName = `${creditCustomerDetails.firstName} ${creditCustomerDetails.lastName}`;
+            } catch (error) {
+                console.error('Error registering credit customer:', error);
+                setErrorMessage('Failed to register credit customer. Please try again.');
+                setOpenSnackbar(true);
+                return;
+            }
+        }
+
         try {
             const order = {
-                customerName: customerName || 'POS Customer',
+                customerName: finalCustomerName,
                 paymentMethod: paymentMethod,
                 totalAmount: totalAmount,
                 status: 'COMPLETED',
@@ -258,6 +319,13 @@ const PosTerminal = () => {
                     quantity: item.quantity,
                     sellingPrice: item.sellingPrice,
                 })),
+                creditCustomerDetails: paymentMethod === 'Credit Purpose' ? {
+                    firstName: creditCustomerDetails.firstName,
+                    lastName: creditCustomerDetails.lastName,
+                    phone: creditCustomerDetails.phone,
+                    email: creditCustomerDetails.email,
+                    address: creditCustomerDetails.address,
+                } : null,
             };
 
             if (!navigator.onLine) {
@@ -272,15 +340,8 @@ const PosTerminal = () => {
                 return;
             }
 
-            for (const item of cart) {
-                const product = products.find(p => p.productId === item.productId);
-                if (product && product.quantity >= item.quantity) {
-                    await productService.restockProduct(product.productId, -item.quantity, product.buyingPrice, product.sellingPrice, null);
-                } else {
-                    throw new Error(`${product.productName} has insufficient stock.`);
-                }
-            }
-
+            // Remove the frontend inventory deduction
+            // Let the backend handle inventory deduction
             const response = await orderServices.createPosOrder(order);
             const createdOrder = response.data.order;
             setNewOrder(createdOrder);
@@ -288,6 +349,13 @@ const PosTerminal = () => {
             setOpenSnackbar(true);
             setCart([]);
             setTotalAmount(0);
+            setCreditCustomerDetails({
+                firstName: '',
+                lastName: '',
+                phone: '',
+                email: '',
+                address: '',
+            });
             setOpenPaymentDialog(false);
             handlePrintReceipt();
             fetchProducts();
@@ -295,12 +363,7 @@ const PosTerminal = () => {
             console.error('Error processing sale:', error);
             setErrorMessage(error.message || 'Failed to process sale. Please try again.');
             setOpenSnackbar(true);
-            for (const item of cart) {
-                const product = products.find(p => p.productId === item.productId);
-                if (product) {
-                    await productService.restockProduct(product.productId, item.quantity, product.buyingPrice, product.sellingPrice, null);
-                }
-            }
+            // No need to revert inventory here since the backend will handle it
         }
     };
 
@@ -325,7 +388,6 @@ const PosTerminal = () => {
             </Typography>
 
             <Grid container spacing={3}>
-                {/* Left Side: Scanner and Manual Input */}
                 <Grid item xs={12} md={5}>
                     <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="h6" gutterBottom sx={{ color: '#333', fontWeight: 'medium' }}>
@@ -353,7 +415,6 @@ const PosTerminal = () => {
                     </Paper>
                 </Grid>
 
-                {/* Right Side: Cart and Actions */}
                 <Grid item xs={12} md={7}>
                     <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="h6" gutterBottom sx={{ color: '#333', fontWeight: 'medium' }}>
@@ -446,7 +507,6 @@ const PosTerminal = () => {
                 </Grid>
             </Grid>
 
-            {/* Scanner Dialog */}
             <Dialog
                 open={scannerDialogOpen}
                 onClose={handleCloseScannerDialog}
@@ -476,34 +536,110 @@ const PosTerminal = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Payment Dialog */}
             <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ backgroundColor: '#0478C0', color: '#fff' }}>Confirm Payment</DialogTitle>
                 <DialogContent sx={{ mt: 2 }}>
-                    <TextField
-                        label="Customer Name (Optional)"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                        sx={{ mb: 2 }}
-                    />
+                    {paymentMethod !== 'Credit Purpose' && (
+                        <TextField
+                            label="Customer Name (Optional)"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            sx={{ mb: 2 }}
+                        />
+                    )}
                     <Typography variant="body1" sx={{ mb: 2 }}>
                         Total Amount: Rs.{totalAmount.toFixed(2)}
                     </Typography>
-                    <FormControl fullWidth variant="outlined" size="small">
+                    <FormControl fullWidth variant="outlined" size="small" sx={{ mb: 2 }}>
                         <InputLabel>Payment Method</InputLabel>
                         <Select
                             value={paymentMethod}
                             onChange={(e) => setPaymentMethod(e.target.value)}
                             label="Payment Method"
                         >
-                            <MenuItem value="CASH">Cash</MenuItem>
-                            <MenuItem value="CARD">Card</MenuItem>
-                            <MenuItem value="DIGITAL">Digital Payment</MenuItem>
+                            <MenuItem value="Cash">Cash</MenuItem>
+                            <MenuItem value="Credit Purpose">Credit Purpose</MenuItem>
                         </Select>
                     </FormControl>
+                    {paymentMethod === 'Credit Purpose' && (
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="First Name"
+                                    name="firstName"
+                                    value={creditCustomerDetails.firstName}
+                                    onChange={handleCreditCustomerInputChange}
+                                    fullWidth
+                                    required
+                                    error={!!errors.firstName}
+                                    helperText={errors.firstName}
+                                    variant="outlined"
+                                    size="small"
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Last Name"
+                                    name="lastName"
+                                    value={creditCustomerDetails.lastName}
+                                    onChange={handleCreditCustomerInputChange}
+                                    fullWidth
+                                    required
+                                    error={!!errors.lastName}
+                                    helperText={errors.lastName}
+                                    variant="outlined"
+                                    size="small"
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    label="Phone Number"
+                                    name="phone"
+                                    value={creditCustomerDetails.phone}
+                                    onChange={handleCreditCustomerInputChange}
+                                    fullWidth
+                                    required
+                                    error={!!errors.phone}
+                                    helperText={errors.phone}
+                                    variant="outlined"
+                                    size="small"
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    label="Email (Optional)"
+                                    name="email"
+                                    type="email"
+                                    value={creditCustomerDetails.email}
+                                    onChange={handleCreditCustomerInputChange}
+                                    fullWidth
+                                    error={!!errors.email}
+                                    helperText={errors.email}
+                                    variant="outlined"
+                                    size="small"
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    label="Address"
+                                    name="address"
+                                    value={creditCustomerDetails.address}
+                                    onChange={handleCreditCustomerInputChange}
+                                    fullWidth
+                                    required
+                                    error={!!errors.address}
+                                    helperText={errors.address}
+                                    variant="outlined"
+                                    size="small"
+                                    multiline
+                                    rows={2}
+                                />
+                            </Grid>
+                        </Grid>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setOpenPaymentDialog(false)} color="secondary">
@@ -515,7 +651,6 @@ const PosTerminal = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Return Dialog */}
             <Dialog open={openReturnDialog} onClose={() => setOpenReturnDialog(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ backgroundColor: '#0478C0', color: '#fff' }}>Process Return</DialogTitle>
                 <DialogContent sx={{ mt: 2 }}>
@@ -538,7 +673,6 @@ const PosTerminal = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Hidden Receipt for Printing */}
             <div style={{ display: 'none' }}>
                 <div ref={receiptRef} style={{ padding: '10px', fontFamily: 'monospace' }}>
                     <h3>Grocery Store Receipt</h3>
@@ -558,7 +692,6 @@ const PosTerminal = () => {
                 </div>
             </div>
 
-            {/* Snackbar for Notifications */}
             <Snackbar
                 open={openSnackbar}
                 autoHideDuration={3000}
