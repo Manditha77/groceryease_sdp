@@ -20,4 +20,5 @@ public class UserRegistrationDTO {
     private String username;
     private String password;
     private String companyName;
+    private String customerType; // Added for distinguishing between ONLINE and CREDIT
 }

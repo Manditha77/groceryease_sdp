@@ -3,12 +3,11 @@ package com.uok.groceryease_backend.service;
 import com.uok.groceryease_backend.DAO.OrderRepository;
 import com.uok.groceryease_backend.DAO.ProductRepository;
 import com.uok.groceryease_backend.DAO.ProductBatchRepository;
+import com.uok.groceryease_backend.DAO.LoanNotificationRepository;
 import com.uok.groceryease_backend.DTO.OrderDTO;
 import com.uok.groceryease_backend.DTO.OrderItemDTO;
-import com.uok.groceryease_backend.entity.Order;
-import com.uok.groceryease_backend.entity.OrderItem;
-import com.uok.groceryease_backend.entity.Product;
-import com.uok.groceryease_backend.entity.ProductBatch;
+import com.uok.groceryease_backend.DTO.UserRegistrationDTO;
+import com.uok.groceryease_backend.entity.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +36,12 @@ public class OrderService {
     private ProductBatchRepository productBatchRepository;
 
     @Autowired
+    private LoanNotificationRepository loanNotificationRepository;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     @Transactional
@@ -53,7 +58,8 @@ public class OrderService {
         }
         order.setOrderDate(LocalDateTime.now());
         order.setInventoryAdjusted(false);
-        order.setOrderType(Order.OrderType.ECOMMERCE); // Set order type to ECOMMERCE
+        order.setOrderType(Order.OrderType.ECOMMERCE);
+        order.setUsername(orderDTO.getUsername());
 
         List<OrderItem> orderItems = new ArrayList<>();
         List<String> inventoryWarnings = new ArrayList<>();
@@ -99,10 +105,27 @@ public class OrderService {
         order.setCustomerName(orderDTO.getCustomerName());
         order.setPaymentMethod(orderDTO.getPaymentMethod());
         order.setTotalAmount(orderDTO.getTotalAmount());
-        order.setStatus(Order.Status.COMPLETED); // POS orders are completed immediately
+        order.setStatus(Order.Status.COMPLETED);
         order.setOrderDate(LocalDateTime.now());
         order.setInventoryAdjusted(false);
-        order.setOrderType(Order.OrderType.POS); // Set order type to POS
+        order.setOrderType(Order.OrderType.POS);
+        order.setUsername(null);
+
+        // Handle credit customer
+        if ("Credit Purpose".equals(orderDTO.getPaymentMethod()) && orderDTO.getCreditCustomerDetails() != null) {
+            UserRegistrationDTO userDTO = new UserRegistrationDTO();
+            userDTO.setFirstName(orderDTO.getCreditCustomerDetails().getFirstName());
+            userDTO.setLastName(orderDTO.getCreditCustomerDetails().getLastName());
+            userDTO.setPhoneNo(orderDTO.getCreditCustomerDetails().getPhone());
+            userDTO.setEmail(orderDTO.getCreditCustomerDetails().getEmail());
+            userDTO.setAddress(orderDTO.getCreditCustomerDetails().getAddress());
+            userDTO.setUserType(UserType.CUSTOMER);
+            userDTO.setCustomerType("CREDIT");
+
+            // Register or find the credit customer
+            User creditCustomer = userService.registerCreditCustomer(userDTO);
+            order.setUser(creditCustomer);
+        }
 
         List<OrderItem> orderItems = new ArrayList<>();
         List<String> inventoryWarnings = new ArrayList<>();
@@ -113,7 +136,6 @@ public class OrderService {
             orderItem.setQuantity(itemDTO.getQuantity());
             orderItem.setOrder(order);
 
-            // Validate inventory availability
             List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(itemDTO.getProductId());
             int totalAvailableQuantity = batches.stream().mapToInt(ProductBatch::getQuantity).sum();
             if (totalAvailableQuantity < itemDTO.getQuantity()) {
@@ -122,7 +144,6 @@ public class OrderService {
                 throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
             }
 
-            // Since status is COMPLETED, deduct inventory immediately (FIFO)
             int remainingQuantity = itemDTO.getQuantity();
             ProductBatch selectedBatch = null;
 
@@ -159,7 +180,22 @@ public class OrderService {
             order.setInventoryAdjusted(true);
         }
 
+        // Save the Order first
         Order savedOrder = orderRepository.save(order);
+
+        // Create and save the LoanNotification after the Order is saved
+        if ("Credit Purpose".equals(orderDTO.getPaymentMethod()) && orderDTO.getCreditCustomerDetails() != null) {
+            User creditCustomer = savedOrder.getUser();
+            LoanNotification notification = new LoanNotification();
+            notification.setOrder(savedOrder); // Now the Order has an ID
+            notification.setUser(creditCustomer);
+            notification.setNotificationDate(LocalDateTime.now());
+            notification.setDueAmount(orderDTO.getTotalAmount());
+            notification.setNotificationMethod(creditCustomer.getEmail() != null && !creditCustomer.getEmail().isEmpty() ? "EMAIL" : "PHONE");
+            notification.setStatus("PENDING");
+            loanNotificationRepository.save(notification);
+        }
+
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
         if (!inventoryWarnings.isEmpty()) {
@@ -204,7 +240,6 @@ public class OrderService {
         boolean isInventoryAdjusted = order.getInventoryAdjusted() != null ? order.getInventoryAdjusted() : false;
         List<String> inventoryWarnings = new ArrayList<>();
 
-        // Only adjust inventory for ECOMMERCE orders when status changes to COMPLETED
         if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted && order.getOrderType() == Order.OrderType.ECOMMERCE) {
             for (OrderItem item : order.getItems()) {
                 List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(item.getProductId());
@@ -266,6 +301,13 @@ public class OrderService {
         return savedOrderDTO;
     }
 
+    public List<OrderDTO> getOrdersByCustomer(String username) {
+        return orderRepository.findAllWithItems().stream()
+                .filter(order -> order.getUsername() != null && order.getUsername().equals(username))
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
     private OrderDTO convertToDTO(Order order) {
         OrderDTO orderDTO = new OrderDTO();
         orderDTO.setOrderId(order.getOrderId());
@@ -276,6 +318,7 @@ public class OrderService {
         orderDTO.setOrderDate(order.getOrderDate());
         orderDTO.setInventoryAdjusted(order.getInventoryAdjusted());
         orderDTO.setOrderType(order.getOrderType() != null ? order.getOrderType().name() : null);
+        orderDTO.setUsername(order.getUsername());
 
         List<OrderItemDTO> itemDTOs = order.getItems().stream().map(item -> {
             OrderItemDTO itemDTO = new OrderItemDTO();
@@ -286,6 +329,35 @@ public class OrderService {
             return itemDTO;
         }).collect(Collectors.toList());
         orderDTO.setItems(itemDTOs);
+
+        // Map credit customer details from the linked User entity
+        if ("Credit Purpose".equals(order.getPaymentMethod())) {
+            logger.info("Order ID: {}, Payment Method: Credit Purpose, Checking for user...", order.getOrderId());
+            if (order.getUser() != null) {
+                User user = order.getUser();
+                logger.info("User found for Order ID: {}, User ID: {}, User Type: {}",
+                        order.getOrderId(), user.getUserId(), user.getUserType());
+                if (user instanceof Customer) {
+                    Customer customer = (Customer) user;
+                    logger.info("User is a Customer for Order ID: {}. Setting creditCustomerDetails.", order.getOrderId());
+                    orderDTO.setCreditCustomerDetails(new OrderDTO.CreditCustomerDetailsDTO(
+                            user.getFirstName(),
+                            user.getLastName(),
+                            user.getPhoneNo(),
+                            user.getEmail(),
+                            customer.getAddress()
+                    ));
+                } else {
+                    logger.warn("User associated with credit order (Order ID: {}) is not a Customer. Actual type: {}",
+                            order.getOrderId(), user.getClass().getName());
+                }
+            } else {
+                logger.warn("No user associated with credit order (Order ID: {})", order.getOrderId());
+            }
+        } else {
+            logger.info("Order ID: {}, Not a credit order (Payment Method: {})",
+                    order.getOrderId(), order.getPaymentMethod());
+        }
 
         return orderDTO;
     }

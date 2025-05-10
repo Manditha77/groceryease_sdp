@@ -21,7 +21,21 @@ public class OrderDTO {
     private String status;
     private LocalDateTime orderDate;
     private List<OrderItemDTO> items;
-    private List<String> warnings; // Added for inventory adjustment warnings
-    private Boolean inventoryAdjusted; // Added to expose inventoryAdjusted to the frontend
-    private String orderType; // Added to expose orderType to the frontend
+    private List<String> warnings;
+    private Boolean inventoryAdjusted;
+    private String orderType;
+    private String username;
+    private CreditCustomerDetailsDTO creditCustomerDetails; // Added for credit purchases
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreditCustomerDetailsDTO {
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String address;
+    }
 }

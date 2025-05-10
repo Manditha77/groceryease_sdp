@@ -39,7 +39,7 @@ public class UserService {
         if (userAuth != null && userAuth.getPassword().equals(password)) {
             return convertToDTO(userAuth.getUser(), userAuth);
         }
-        return null; // or throw an exception
+        return null;
     }
 
     @Transactional
@@ -48,7 +48,7 @@ public class UserService {
         if (UserType.CUSTOMER.equals(userDTO.getUserType())) {
             Customer customer = new Customer();
             customer.setAddress(userDTO.getAddress());
-            customer.setCustomerType("ONLINE");
+            customer.setCustomerType(userDTO.getCustomerType() != null ? userDTO.getCustomerType() : "ONLINE");
             user = customer;
         } else if (UserType.EMPLOYEE.equals(userDTO.getUserType())) {
             Employee employee = new Employee();
@@ -80,10 +80,36 @@ public class UserService {
         } else if (user instanceof Employee) {
             employeeRepository.save((Employee) user);
         } else if (user instanceof Owner) {
-             ownerRepository.save((Owner) user);
+            ownerRepository.save((Owner) user);
         }
 
         return convertToDTO(savedUser, userAuth);
+    }
+
+    @Transactional
+    public User registerCreditCustomer(UserRegistrationDTO userDTO) {
+        // Check if a customer already exists with the given phone number
+        Optional<User> existingUser = userRepository.findAll().stream()
+                .filter(user -> user.getPhoneNo() != null && user.getPhoneNo().equals(userDTO.getPhoneNo()))
+                .findFirst();
+
+        if (existingUser.isPresent()) {
+            return existingUser.get();
+        }
+
+        // Create a new credit customer
+        Customer customer = new Customer();
+        customer.setFirstName(userDTO.getFirstName());
+        customer.setLastName(userDTO.getLastName());
+        customer.setEmail(userDTO.getEmail() != null ? userDTO.getEmail() : ""); // Email can be empty
+        customer.setPhoneNo(userDTO.getPhoneNo());
+        customer.setUserType(UserType.CUSTOMER);
+        customer.setAddress(userDTO.getAddress());
+        customer.setCustomerType("CREDIT");
+
+        User savedUser = userRepository.save(customer);
+        customerRepository.save(customer);
+        return savedUser;
     }
 
     public List<UserRegistrationDTO> getAllUsers() {
@@ -132,7 +158,7 @@ public class UserService {
             User user = userAuth.getUser();
             return convertToDTO(user, userAuth);
         }
-        return null; // or throw an exception
+        return null;
     }
 
     public UserRegistrationDTO updateUser(Long userId, UserRegistrationDTO userDTO) {
@@ -165,7 +191,7 @@ public class UserService {
 
             return convertToDTO(updatedUser, userAuth);
         }
-        return null; // or throw an exception
+        return null;
     }
 
     @Transactional
@@ -186,12 +212,15 @@ public class UserService {
         userDTO.setEmail(user.getEmail());
         userDTO.setPhoneNo(user.getPhoneNo());
         userDTO.setUserType(user.getUserType());
-        userDTO.setUsername(userAuth.getUsername());
-        userDTO.setPassword(userAuth.getPassword());
+        if (userAuth != null) {
+            userDTO.setUsername(userAuth.getUsername());
+            userDTO.setPassword(userAuth.getPassword());
+        }
 
         if (user instanceof Customer) {
             Customer customer = (Customer) user;
             userDTO.setAddress(customer.getAddress());
+            userDTO.setCustomerType(customer.getCustomerType());
         } else if (user instanceof Employee) {
             Employee employee = (Employee) user;
             userDTO.setAddress(employee.getAddress());
