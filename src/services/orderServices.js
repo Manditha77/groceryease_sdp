@@ -47,6 +47,9 @@ const orderServices = {
     getOrdersByCustomer: (customerName) => {
         return axiosInstance.get(`/customer/${customerName}`);
     },
+    sendLoanNotification: (orderId) => {
+        return axiosInstance.post(`/${orderId}/send-notification`);
+    },
 };
 
 export default orderServices;

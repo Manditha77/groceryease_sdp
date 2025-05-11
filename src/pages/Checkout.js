@@ -41,15 +41,13 @@ const initialFormData = {
     customerName: '',
     email: '',
     phone: '',
-    pickupDate: '',
-    pickupTime: '',
     paymentMethod: 'Cash on Pickup',
     saveInformation: true,
     notes: '',
 };
 
 function Checkout() {
-    const { cartItems, setCartItems } = useContext(CartContext);
+    const { cartItems, setCartItems, estimatedPickupDate } = useContext(CartContext);
     const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState({});
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -63,6 +61,9 @@ function Checkout() {
 
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Default pickup time (earliest store hour on weekdays)
+    const defaultPickupTime = '11:00';
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -140,41 +141,9 @@ function Checkout() {
         };
 
         fetchUserDetails();
-        generatePickupDates();
     }, [navigate, orderSuccess, location.search]);
 
     const totalPrice = cartItems.reduce((sum, item) => sum + (item.sellingPrice || 0) * (item.quantity || 0), 0);
-
-    const generatePickupDates = () => {
-        const today = new Date();
-        const availableDates = [];
-        for (let i = 0; i <= 7; i++) {
-            const date = new Date();
-            date.setDate(today.getDate() + i);
-            availableDates.push(date);
-        }
-        return availableDates.map(date => ({
-            value: date.toISOString().split('T')[0],
-            label: date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-        }));
-    };
-
-    const availablePickupDates = generatePickupDates();
-
-    const availablePickupTimes = [
-        { value: '12:00', label: '12:00 PM' },
-        { value: '13:00', label: '1:00 PM' },
-        { value: '14:00', label: '2:00 PM' },
-        { value: '15:00', label: '3:00 PM' },
-        { value: '16:00', label: '4:00 PM' },
-        { value: '17:00', label: '5:00 PM' },
-        { value: '18:00', label: '6:00 PM' },
-        { value: '19:00', label: '7:00 PM' },
-        { value: '20:00', label: '8:00 PM' },
-        { value: '21:00', label: '9:00 PM' },
-        { value: '22:00', label: '10:00 PM' },
-        { value: '23:00', label: '11:00 PM' },
-    ];
 
     const validateForm = () => {
         const newErrors = {};
@@ -198,16 +167,6 @@ function Checkout() {
             isValid = false;
         } else if (!/^\d{10}$/.test(formData.phone.replace(/\D/g, ''))) {
             newErrors.phone = 'Please enter a valid 10-digit phone number';
-            isValid = false;
-        }
-
-        if (!formData.pickupDate) {
-            newErrors.pickupDate = 'Please select a pickup date';
-            isValid = false;
-        }
-
-        if (!formData.pickupTime) {
-            newErrors.pickupTime = 'Please select a pickup time';
             isValid = false;
         }
 
@@ -277,8 +236,8 @@ function Checkout() {
                 customerName: formData.customerName,
                 email: formData.email,
                 phone: formData.phone,
-                pickupDate: formData.pickupDate,
-                pickupTime: formData.pickupTime,
+                pickupDate: estimatedPickupDate, // Use estimated pickup date from context
+                pickupTime: defaultPickupTime,   // Default pickup time
                 paymentMethod: formData.paymentMethod,
                 notes: formData.notes,
                 items: cartItems.map((item) => ({
@@ -306,7 +265,6 @@ function Checkout() {
             setOrderId(orderIdFromResponse);
             setOrderSuccess(true);
             setActiveStep(2);
-            navigate('/my-orders');
         } catch (error) {
             console.error('Error placing pre-order:', error);
             if (error.response && error.response.status === 400) {
@@ -342,8 +300,8 @@ function Checkout() {
                     customerName: formData.customerName,
                     email: formData.email,
                     phone: formData.phone,
-                    pickupDate: formData.pickupDate,
-                    pickupTime: formData.pickupTime,
+                    pickupDate: estimatedPickupDate, // Use estimated pickup date
+                    pickupTime: defaultPickupTime,   // Default pickup time
                     paymentMethod: formData.paymentMethod,
                     notes: formData.notes,
                     items: cartItems.map((item) => ({
@@ -406,8 +364,8 @@ function Checkout() {
                 customerName: savedFormData.customerName,
                 email: savedFormData.email || '',
                 phone: savedFormData.phone || '',
-                pickupDate: savedFormData.pickupDate || '',
-                pickupTime: savedFormData.pickupTime || '',
+                pickupDate: estimatedPickupDate, // Use estimated pickup date
+                pickupTime: defaultPickupTime,   // Default pickup time
                 paymentMethod: 'Online Payment',
                 notes: savedFormData.notes || '',
                 items: savedCartItems.map((item) => ({
@@ -438,7 +396,6 @@ function Checkout() {
             setOrderId(orderIdFromResponse);
             setOrderSuccess(true);
             setActiveStep(2);
-            navigate('/my-orders');
         } catch (error) {
             console.error('Error creating order after payment:', error);
             setErrorMessage(error.message || 'Failed to create order after successful payment. Please contact support.');
@@ -503,49 +460,6 @@ function Checkout() {
                             />
                         </Grid>
                         <Grid item xs={12}>
-                            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                                Pickup Details
-                            </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth error={!!errors.pickupDate}>
-                                <InputLabel>Pickup Date*</InputLabel>
-                                <Select
-                                    label="Pickup Date*"
-                                    name="pickupDate"
-                                    value={formData.pickupDate}
-                                    onChange={handleSelectChange}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                >
-                                    {availablePickupDates.map((date) => (
-                                        <MenuItem key={date.value} value={date.value}>
-                                            {date.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {errors.pickupDate && <FormHelperText>{errors.pickupDate}</FormHelperText>}
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth error={!!errors.pickupTime}>
-                                <InputLabel>Pickup Time*</InputLabel>
-                                <Select
-                                    label="Pickup Time*"
-                                    name="pickupTime"
-                                    value={formData.pickupTime}
-                                    onChange={handleSelectChange}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                                >
-                                    {availablePickupTimes.map((time) => (
-                                        <MenuItem key={time.value} value={time.value}>
-                                            {time.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {errors.pickupTime && <FormHelperText>{errors.pickupTime}</FormHelperText>}
-                            </FormControl>
-                        </Grid>
-                        <Grid item xs={12}>
                             <TextField
                                 label="Additional Notes (optional)"
                                 name="notes"
@@ -590,19 +504,6 @@ function Checkout() {
                                 <Typography variant="body2">Name: {formData.customerName}</Typography>
                                 <Typography variant="body2">Email: {formData.email}</Typography>
                                 <Typography variant="body2">Phone: {formData.phone}</Typography>
-                                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
-                                    Pickup Details
-                                </Typography>
-                                <Typography variant="body2">
-                                    Date: {new Date(formData.pickupDate).toLocaleDateString('en-US', {
-                                    weekday: 'long',
-                                    month: 'short',
-                                    day: 'numeric',
-                                })}
-                                </Typography>
-                                <Typography variant="body2">
-                                    Time: {availablePickupTimes.find(t => t.value === formData.pickupTime)?.label || formData.pickupTime}
-                                </Typography>
                                 {formData.notes && (
                                     <>
                                         <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
@@ -664,16 +565,6 @@ function Checkout() {
                             <Typography variant="body1" gutterBottom sx={{ fontWeight: 'bold' }}>
                                 Order ID: {orderId}
                             </Typography>
-                            <Typography variant="body1">
-                                Pickup Date: {new Date(formData.pickupDate).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric',
-                            })}
-                            </Typography>
-                            <Typography variant="body1">
-                                Pickup Time: {availablePickupTimes.find(t => t.value === formData.pickupTime)?.label || formData.pickupTime}
-                            </Typography>
                         </Box>
                         <Typography variant="body2" paragraph>
                             A confirmation email has been sent to {formData.email}.
@@ -705,7 +596,7 @@ function Checkout() {
     };
 
     return (
-        <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Container maxWidth="lg" sx={{ py: 4, pt: 8 }}>
             {!orderSuccess && (
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, paddingTop: 2 }}>
                     <IconButton
@@ -746,8 +637,26 @@ function Checkout() {
                 </Alert>
             </Collapse>
             <Grid container spacing={4}>
-                <Grid item xs={12} md={8}>
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #eaeaea' }}>
+                <Grid
+                    item
+                    xs={12}
+                    md={activeStep === 2 ? 12 : 8}
+                    sx={{
+                        ...(activeStep === 2 && {
+                            display: 'flex',
+                            justifyContent: 'center',
+                        }),
+                    }}
+                >
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            p: 3,
+                            borderRadius: 2,
+                            border: '1px solid #eaeaea',
+                            ...(activeStep === 2 && { maxWidth: '600px', width: '100%' }),
+                        }}
+                    >
                         {renderStepContent(activeStep)}
                         {activeStep < 2 && (
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
@@ -774,9 +683,11 @@ function Checkout() {
                         )}
                     </Paper>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                    <OrderSummary cartItems={cartItems} showActionButton={false} isCheckout={true} />
-                </Grid>
+                {activeStep < 2 && (
+                    <Grid item xs={12} md={4}>
+                        <OrderSummary cartItems={cartItems} showActionButton={false} isCheckout={true} />
+                    </Grid>
+                )}
             </Grid>
         </Container>
     );

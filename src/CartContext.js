@@ -10,11 +10,14 @@ export const CartContext = createContext({
     clearCart: () => {},
     toggleWishlistItem: () => {},
     isInWishlist: () => false,
+    estimatedPickupDate: null,
+    setEstimatedPickupDate: () => {},
 });
 
 export const CartProvider = ({ children }) => {
     const [cartItems, setCartItems] = useState([]);
     const [wishlistItems, setWishlistItems] = useState([]);
+    const [estimatedPickupDate, setEstimatedPickupDate] = useState(null);
 
     // Load cart from localStorage on initial render
     useEffect(() => {
@@ -73,7 +76,7 @@ export const CartProvider = ({ children }) => {
                 return updatedItems;
             } else {
                 // Item doesn't exist, add new item with quantity 1
-                return [...prevItems, { ...product, quantity: 1 }];
+                return [...prevItems, { ...product, quantity: 1, maxQuantity: product.quantity }];
             }
         });
     };
@@ -139,6 +142,8 @@ export const CartProvider = ({ children }) => {
                 clearCart,
                 toggleWishlistItem,
                 isInWishlist,
+                estimatedPickupDate,
+                setEstimatedPickupDate,
             }}
         >
             {children}

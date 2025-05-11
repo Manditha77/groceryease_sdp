@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider, Button, Snackbar, Alert } from '@mui/material';
 import orderServices from '../services/orderServices';
 import productService from '../services/productServices';
 
 const CreditCustomers = () => {
     const [creditOrders, setCreditOrders] = useState([]);
     const [products, setProducts] = useState({});
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -30,6 +31,7 @@ const CreditCustomers = () => {
                 setProducts(productMap);
             } catch (error) {
                 console.error('Error fetching data:', error);
+                setSnackbar({ open: true, message: 'Failed to fetch credit orders', severity: 'error' });
             }
         };
 
@@ -40,9 +42,23 @@ const CreditCustomers = () => {
         console.log('Credit Orders State:', creditOrders);
     }, [creditOrders]);
 
+    const handleSendNotification = async (orderId) => {
+        try {
+            const response = await orderServices.sendLoanNotification(orderId);
+            setSnackbar({ open: true, message: response.data.message, severity: 'success' });
+        } catch (error) {
+            const errorMessage = error.response?.data?.message || `Failed to send notification for Order ID: ${orderId}`;
+            setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+        }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({ ...snackbar, open: false });
+    };
+
     return (
-        <Box sx={{ padding: 4 }}>
-            <Typography variant="h4" gutterBottom paddingTop="30px">
+        <Box sx={{ padding: 4, paddingTop: 7 }}>
+            <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                 Credit Customers
             </Typography>
             {creditOrders.length === 0 ? (
@@ -53,9 +69,20 @@ const CreditCustomers = () => {
                     console.log('Credit Customer Details:', order.creditCustomerDetails);
                     return (
                         <Paper key={index} elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
-                            <Typography variant="h6" gutterBottom>
-                                Order ID: {order.orderId}
-                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="h6" gutterBottom>
+                                    Order ID: {order.orderId}
+                                </Typography>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={() => handleSendNotification(order.orderId)}
+                                    disabled={!order.creditCustomerDetails || (!order.creditCustomerDetails.email && !order.creditCustomerDetails.phone)}
+                                    sx={{ mb: 2 }}
+                                >
+                                    Send Reminder
+                                </Button>
+                            </Box>
                             <Typography variant="body1">
                                 Date: {new Date(order.orderDate).toLocaleString()}
                             </Typography>
@@ -105,6 +132,11 @@ const CreditCustomers = () => {
                     );
                 })
             )}
+            <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

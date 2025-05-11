@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
 import {
     Box, Typography, Button, TextField, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Paper, Snackbar, Alert, MenuItem, Select, FormControl, InputLabel,
-    Grid, Divider, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions
+    Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { Html5QrcodeScanner } from "html5-qrcode";
 import productService from '../services/productServices';
 import orderServices from '../services/orderServices';
 import authService from '../services/authService';
+import Receipt from './Receipt';
 
 const PosTerminal = () => {
     const [cart, setCart] = useState([]);
@@ -29,22 +29,23 @@ const PosTerminal = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [openSnackbar, setOpenSnackbar] = useState(false);
     const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
-    const [returnOrderId, setReturnOrderId] = useState('');
-    const [openReturnDialog, setOpenReturnDialog] = useState(false);
-    const [newOrder, setNewOrder] = useState(null);
     const [scannerDialogOpen, setScannerDialogOpen] = useState(false);
     const [lastAddedItem, setLastAddedItem] = useState(null);
-    const receiptRef = useRef();
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [isPrinting, setIsPrinting] = useState(false);
     const scannerRef = useRef(null);
 
-    const handlePrintReceipt = useReactToPrint({
-        content: () => receiptRef.current,
-    });
+    const loggedInUser = authService.getLoggedInUser();
+    const staffName = loggedInUser?.username || 'Unknown';
 
     const fetchProducts = async () => {
         try {
             const response = await productService.getAllProducts();
-            setProducts(response.data || []);
+            if (response && response.data) {
+                setProducts(response.data);
+            } else {
+                throw new Error('No data returned from getAllProducts');
+            }
         } catch (error) {
             console.error('Error fetching products:', error);
             setErrorMessage('Failed to load products.');
@@ -62,11 +63,25 @@ const PosTerminal = () => {
             if (offlineSales.length > 0 && navigator.onLine) {
                 for (const sale of offlineSales) {
                     try {
-                        await orderServices.createPosOrder(sale);
+                        const createOrderPromise = orderServices.createPosOrder(sale);
+                        if (!createOrderPromise || typeof createOrderPromise.then !== 'function') {
+                            throw new Error('createPosOrder did not return a Promise');
+                        }
+                        await createOrderPromise;
                         for (const item of sale.items) {
                             const product = products.find(p => p.productId === item.productId);
                             if (product) {
-                                await productService.restockProduct(product.productId, item.quantity, product.buyingPrice, product.sellingPrice, null);
+                                const restockPromise = productService.restockProduct(
+                                    product.productId,
+                                    item.quantity,
+                                    product.buyingPrice,
+                                    product.sellingPrice,
+                                    null
+                                );
+                                if (!restockPromise || typeof restockPromise.then !== 'function') {
+                                    throw new Error('restockProduct did not return a Promise');
+                                }
+                                await restockPromise;
                             }
                         }
                     } catch (error) {
@@ -85,6 +100,13 @@ const PosTerminal = () => {
     useEffect(() => {
         if (!scannerDialogOpen) return;
 
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setErrorMessage('Camera access is not supported in this browser or environment.');
+            setOpenSnackbar(true);
+            setScannerDialogOpen(false);
+            return;
+        }
+
         if (!window.isSecureContext) {
             setErrorMessage('Camera access requires a secure context (HTTPS or localhost).');
             setOpenSnackbar(true);
@@ -92,7 +114,15 @@ const PosTerminal = () => {
             return;
         }
 
-        navigator.mediaDevices.getUserMedia({ video: true })
+        const mediaPromise = navigator.mediaDevices.getUserMedia({ video: true });
+        if (!mediaPromise || typeof mediaPromise.then !== 'function') {
+            setErrorMessage('navigator.mediaDevices.getUserMedia did not return a Promise');
+            setOpenSnackbar(true);
+            setScannerDialogOpen(false);
+            return;
+        }
+
+        mediaPromise
             .then((stream) => {
                 console.log("Camera access granted:", stream);
                 stream.getTracks().forEach(track => track.stop());
@@ -131,26 +161,18 @@ const PosTerminal = () => {
 
             scanner.render(async (data) => {
                 try {
-                    const response = await productService.getProductByBarcode(data);
+                    const responsePromise = productService.getProductByBarcode(data);
+                    if (!responsePromise || typeof responsePromise.then !== 'function') {
+                        throw new Error('getProductByBarcode did not return a Promise');
+                    }
+                    const response = await responsePromise;
                     const product = response.data;
                     if (product) {
                         if (product.quantity <= 0) {
                             setErrorMessage(`${product.productName} is out of stock.`);
                             setOpenSnackbar(true);
                         } else {
-                            const existingItem = cart.find(item => item.productId === product.productId);
-                            if (existingItem) {
-                                setCart(cart.map(item =>
-                                    item.productId === product.productId
-                                        ? { ...item, quantity: item.quantity + 1 }
-                                        : item
-                                ));
-                            } else {
-                                setCart([...cart, { ...product, quantity: 1 }]);
-                            }
-                            setTotalAmount(totalAmount + product.sellingPrice);
-                            setLastAddedItem(product.productId);
-                            setTimeout(() => setLastAddedItem(null), 1000);
+                            addOrUpdateCartItem(product.productId);
                             handleCloseScannerDialog();
                         }
                     } else {
@@ -159,7 +181,7 @@ const PosTerminal = () => {
                     }
                 } catch (error) {
                     console.error("Product fetch error:", error);
-                    setErrorMessage('Failed to fetch product: ' + (error.response?.data?.message || error.message));
+                    setErrorMessage('Failed to fetch product: ' + (error.message || 'Unknown error'));
                     setOpenSnackbar(true);
                 }
             }, (error) => {
@@ -180,45 +202,168 @@ const PosTerminal = () => {
 
         return () => {
             if (scannerRef.current) {
-                scannerRef.current.clear().catch((err) => console.error("Failed to clear scanner on unmount:", err));
+                const clearPromise = scannerRef.current.clear();
+                if (clearPromise && typeof clearPromise.then === 'function') {
+                    clearPromise.catch((err) => console.error("Failed to clear scanner on unmount:", err));
+                }
                 scannerRef.current = null;
             }
         };
     }, [scannerDialogOpen, cart, totalAmount]);
 
-    const handleBarcodeScan = async (e) => {
-        if (e.key === 'Enter') {
-            const input = barcode.trim();
-            const productIdNum = Number(input);
-            const product = products.find(p =>
-                p.barcode === input || (productIdNum && p.productId === productIdNum)
-            );
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (['ArrowUp', 'ArrowDown', 'Insert', 'Escape', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
 
-            if (product) {
-                if (product.quantity <= 0) {
-                    setErrorMessage(`${product.productName} is out of stock.`);
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA';
+
+            if (isInputFocused && e.key === 'Enter') {
+                setErrorMessage('');
+                setSuccessMessage('');
+                console.log('Enter pressed, clearing messages. Barcode:', barcode);
+            }
+
+            if (e.key === 'Enter' && isInputFocused) {
+                const input = barcode.trim();
+                console.log('Processing Enter with input:', input);
+                if (!input) {
+                    setErrorMessage('Please enter a product ID or barcode.');
                     setOpenSnackbar(true);
-                    setBarcode('');
+                    console.log('Empty input detected, error set.');
                     return;
                 }
-                const existingItem = cart.find(item => item.productId === product.productId);
-                if (existingItem) {
-                    setCart(cart.map(item =>
-                        item.productId === product.productId
-                            ? { ...item, quantity: item.quantity + 1 }
-                            : item
-                    ));
+
+                const productIdNum = Number(input);
+                const product = products.find(p =>
+                    p.barcode === input || (productIdNum && p.productId === productIdNum)
+                );
+
+                if (product) {
+                    console.log('Product found:', product);
+                    addOrUpdateCartItem(product.productId);
                 } else {
-                    setCart([...cart, { ...product, quantity: 1 }]);
+                    setErrorMessage(`Product not found for ID or barcode: ${input}`);
+                    setOpenSnackbar(true);
+                    console.log('Product not found, error set.');
                 }
-                setTotalAmount(totalAmount + product.sellingPrice);
-                setLastAddedItem(product.productId);
-                setTimeout(() => setLastAddedItem(null), 1000);
-            } else {
-                setErrorMessage('Product not found.');
-                setOpenSnackbar(true);
+                setBarcode('');
+                console.log('Barcode cleared.');
+                return;
             }
-            setBarcode('');
+
+            if (e.key === ' ' && !isInputFocused && !scannerDialogOpen) {
+                handleOpenScannerDialog();
+                return;
+            }
+
+            if (e.key === 'Insert' && !isInputFocused && !openPaymentDialog) {
+                handleCheckout();
+                return;
+            }
+
+            if (e.key === 'Insert' && !isInputFocused && openPaymentDialog) {
+                confirmPayment();
+                return;
+            }
+
+            if (e.key === 'Escape' && openPaymentDialog) {
+                setOpenPaymentDialog(false);
+                return;
+            }
+
+            if (openPaymentDialog || scannerDialogOpen) return;
+
+            if (cart.length === 0) return;
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                const currentIndex = selectedItem
+                    ? cart.findIndex(item => item.productId === selectedItem)
+                    : -1;
+
+                let newIndex;
+                if (e.key === 'ArrowUp') {
+                    newIndex = currentIndex <= 0 ? cart.length - 1 : currentIndex - 1;
+                } else {
+                    newIndex = currentIndex >= cart.length - 1 ? 0 : currentIndex + 1;
+                }
+
+                const newSelectedItem = cart[newIndex].productId;
+                setSelectedItem(newSelectedItem);
+            }
+
+            if (e.key === '+' || e.key === '-') {
+                if (!selectedItem) {
+                    setErrorMessage('Please select an item from the cart to adjust quantity.');
+                    setOpenSnackbar(true);
+                    return;
+                }
+
+                const item = cart.find(item => item.productId === selectedItem);
+                const product = products.find(p => p.productId === selectedItem);
+                if (!item || !product) return;
+
+                let newQuantity;
+                if (e.key === '+') {
+                    newQuantity = item.quantity + 1;
+                    if (newQuantity > product.quantity) {
+                        setErrorMessage(`Cannot increase quantity. Only ${product.quantity} units of ${product.productName} in stock.`);
+                        setOpenSnackbar(true);
+                        return;
+                    }
+                    setTotalAmount(prevTotal => prevTotal + product.sellingPrice);
+                } else {
+                    newQuantity = Math.max(1, item.quantity - 1);
+                    if (newQuantity < item.quantity) {
+                        setTotalAmount(prevTotal => prevTotal - product.sellingPrice);
+                    } else {
+                        setErrorMessage(`Cannot decrease quantity. Quantity is already at the minimum (1) for ${product.productName}.`);
+                        setOpenSnackbar(true);
+                        return;
+                    }
+                }
+
+                setCart(cart.map(cartItem =>
+                    cartItem.productId === selectedItem
+                        ? { ...cartItem, quantity: newQuantity }
+                        : cartItem
+                ));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [cart, selectedItem, products, totalAmount, openPaymentDialog, scannerDialogOpen, barcode]);
+
+    const addOrUpdateCartItem = (productId) => {
+        const product = products.find(p => p.productId === productId);
+        console.log('addOrUpdateCartItem called with productId:', productId, 'Product:', product);
+        if (product && product.quantity > 0) {
+            const existingItem = cart.find(item => item.productId === productId);
+            if (existingItem) {
+                setErrorMessage(`${product.productName} is already in the cart. Use +/- keys to adjust quantity after selecting it.`);
+                setOpenSnackbar(true);
+                console.log('Duplicate item detected, error set.');
+            } else {
+                setCart([...cart, { ...product, quantity: 1 }]);
+                setTotalAmount(totalAmount + product.sellingPrice);
+                setLastAddedItem(productId);
+                setSelectedItem(productId);
+                setSuccessMessage('Product added successfully.');
+                setOpenSnackbar(true);
+                console.log('Product added successfully, success message set.');
+                setTimeout(() => setLastAddedItem(null), 1000);
+            }
+        } else if (product) {
+            setErrorMessage(`${product.productName} is out of stock.`);
+            setOpenSnackbar(true);
+            console.log('Product out of stock, error set.');
+        } else {
+            setErrorMessage('Product not found.');
+            setOpenSnackbar(true);
+            console.log('Product not found in addOrUpdateCartItem, error set.');
         }
     };
 
@@ -229,15 +374,23 @@ const PosTerminal = () => {
     const handleCloseScannerDialog = () => {
         setScannerDialogOpen(false);
         if (scannerRef.current) {
-            scannerRef.current.clear().catch((err) => console.error("Failed to clear scanner on dialog close:", err));
+            const clearPromise = scannerRef.current.clear();
+            if (clearPromise && typeof clearPromise.then === 'function') {
+                clearPromise.catch((err) => console.error("Failed to clear scanner on dialog close:", err));
+            }
             scannerRef.current = null;
         }
+    };
+
+    const handleSelectItem = (productId) => {
+        setSelectedItem(productId);
     };
 
     const removeFromCart = (productId) => {
         const item = cart.find(i => i.productId === productId);
         setCart(cart.filter(i => i.productId !== productId));
         setTotalAmount(totalAmount - (item.sellingPrice * item.quantity));
+        if (selectedItem === productId) setSelectedItem(null);
     };
 
     const handleCheckout = () => {
@@ -283,6 +436,7 @@ const PosTerminal = () => {
     };
 
     const confirmPayment = async () => {
+        setErrorMessage('');
         if (cart.length === 0) {
             setErrorMessage('Cart is empty.');
             setOpenSnackbar(true);
@@ -296,24 +450,20 @@ const PosTerminal = () => {
             if (!isValid) {
                 return;
             }
-
-            try {
-                finalCustomerName = `${creditCustomerDetails.firstName} ${creditCustomerDetails.lastName}`;
-            } catch (error) {
-                console.error('Error registering credit customer:', error);
-                setErrorMessage('Failed to register credit customer. Please try again.');
-                setOpenSnackbar(true);
-                return;
-            }
+            finalCustomerName = `${creditCustomerDetails.firstName} ${creditCustomerDetails.lastName}`;
         }
 
         try {
+            const currentDate = new Date();
+            const transactionDate = currentDate.toLocaleString();
+            console.log('Transaction Date set:', transactionDate);
+
             const order = {
                 customerName: finalCustomerName,
                 paymentMethod: paymentMethod,
                 totalAmount: totalAmount,
                 status: 'COMPLETED',
-                orderDate: new Date().toISOString(),
+                orderDate: currentDate.toISOString(),
                 items: cart.map(item => ({
                     productId: item.productId,
                     quantity: item.quantity,
@@ -328,25 +478,31 @@ const PosTerminal = () => {
                 } : null,
             };
 
+            let tempOrderId = null;
+            let newOrder = null;
+
             if (!navigator.onLine) {
                 const offlineSales = JSON.parse(localStorage.getItem('offlineSales') || '[]');
-                offlineSales.push(order);
+                tempOrderId = `OFFLINE-${Date.now()}`;
+                offlineSales.push({ ...order, tempOrderId });
                 localStorage.setItem('offlineSales', JSON.stringify(offlineSales));
                 setSuccessMessage('Sale recorded offline. Will sync when online.');
                 setOpenSnackbar(true);
-                setCart([]);
-                setTotalAmount(0);
-                setOpenPaymentDialog(false);
-                return;
+            } else {
+                const createOrderPromise = orderServices.createPosOrder(order);
+                if (!createOrderPromise || typeof createOrderPromise.then !== 'function') {
+                    throw new Error('createPosOrder did not return a Promise');
+                }
+                const response = await createOrderPromise;
+                if (!response || !response.data || !response.data.order) {
+                    throw new Error('Invalid response from createPosOrder');
+                }
+                newOrder = response.data.order;
+                setSuccessMessage('Sale completed successfully!');
+                setOpenSnackbar(true);
             }
 
-            // Remove the frontend inventory deduction
-            // Let the backend handle inventory deduction
-            const response = await orderServices.createPosOrder(order);
-            const createdOrder = response.data.order;
-            setNewOrder(createdOrder);
-            setSuccessMessage('Sale completed successfully!');
-            setOpenSnackbar(true);
+            setIsPrinting(true); // Trigger printing
             setCart([]);
             setTotalAmount(0);
             setCreditCustomerDetails({
@@ -357,26 +513,10 @@ const PosTerminal = () => {
                 address: '',
             });
             setOpenPaymentDialog(false);
-            handlePrintReceipt();
             fetchProducts();
         } catch (error) {
             console.error('Error processing sale:', error);
             setErrorMessage(error.message || 'Failed to process sale. Please try again.');
-            setOpenSnackbar(true);
-            // No need to revert inventory here since the backend will handle it
-        }
-    };
-
-    const handleReturn = async () => {
-        try {
-            await orderServices.returnOrder(returnOrderId);
-            setSuccessMessage('Order returned successfully!');
-            setOpenSnackbar(true);
-            setReturnOrderId('');
-            setOpenReturnDialog(false);
-        } catch (error) {
-            console.error('Error processing return:', error);
-            setErrorMessage('Failed to process return. Please try again.');
             setOpenSnackbar(true);
         }
     };
@@ -398,10 +538,10 @@ const PosTerminal = () => {
                                 label="Scan Barcode or Enter Product ID"
                                 value={barcode}
                                 onChange={(e) => setBarcode(e.target.value)}
-                                onKeyPress={handleBarcodeScan}
                                 fullWidth
                                 variant="outlined"
                                 size="small"
+                                helperText="Press Enter to add product, Space to scan, Insert to checkout, Up/Down to select, +/- to adjust"
                             />
                             <Button
                                 variant="contained"
@@ -446,9 +586,11 @@ const PosTerminal = () => {
                                         <TableRow
                                             key={item.productId}
                                             sx={{
-                                                backgroundColor: lastAddedItem === item.productId ? '#e3f2fd' : 'inherit',
+                                                backgroundColor: selectedItem === item.productId ? '#b3e5fc' : lastAddedItem === item.productId ? '#e3f2fd' : 'inherit',
                                                 transition: 'background-color 0.5s',
+                                                cursor: 'pointer',
                                             }}
+                                            onClick={() => handleSelectItem(item.productId)}
                                         >
                                             <TableCell>{item.productName}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
@@ -459,7 +601,10 @@ const PosTerminal = () => {
                                                     variant="outlined"
                                                     color="error"
                                                     size="small"
-                                                    onClick={() => removeFromCart(item.productId)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        removeFromCart(item.productId);
+                                                    }}
                                                 >
                                                     Remove
                                                 </Button>
@@ -493,14 +638,6 @@ const PosTerminal = () => {
                                 >
                                     Checkout
                                 </Button>
-                                <Button
-                                    variant="outlined"
-                                    color="secondary"
-                                    onClick={() => setOpenReturnDialog(true)}
-                                    sx={{ borderRadius: 2 }}
-                                >
-                                    Process Return
-                                </Button>
                             </Box>
                         </Box>
                     </Paper>
@@ -523,7 +660,7 @@ const PosTerminal = () => {
                             height: 'calc(100% - 20px)',
                             minHeight: '300px',
                             border: '2px solid #0478C0',
-                            borderRadius: 2,
+                            borderRadius: '2px !important',
                             overflow: 'hidden',
                             backgroundColor: '#000',
                         }}
@@ -651,55 +788,32 @@ const PosTerminal = () => {
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={openReturnDialog} onClose={() => setOpenReturnDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ backgroundColor: '#0478C0', color: '#fff' }}>Process Return</DialogTitle>
-                <DialogContent sx={{ mt: 2 }}>
-                    <TextField
-                        label="Order ID"
-                        value={returnOrderId}
-                        onChange={(e) => setReturnOrderId(e.target.value)}
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenReturnDialog(false)} color="secondary">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleReturn} color="primary" variant="contained">
-                        Confirm Return
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            <div style={{ display: 'none' }}>
-                <div ref={receiptRef} style={{ padding: '10px', fontFamily: 'monospace' }}>
-                    <h3>Grocery Store Receipt</h3>
-                    <p>Date: {new Date().toLocaleString()}</p>
-                    <p>Order ID: {newOrder?.orderId || 'N/A'}</p>
-                    <p>Customer: {customerName || 'POS Customer'}</p>
-                    <hr />
-                    {cart.map(item => (
-                        <div key={item.productId}>
-                            <p>{item.productName} x {item.quantity} - Rs.{(item.quantity * item.sellingPrice).toFixed(2)}</p>
-                        </div>
-                    ))}
-                    <hr />
-                    <p>Total: Rs.{totalAmount.toFixed(2)}</p>
-                    <p>Payment Method: {paymentMethod}</p>
-                    <p>Thank you for shopping with us!</p>
-                </div>
-            </div>
+            <Receipt
+                isPrinting={isPrinting}
+                onPrintComplete={() => setIsPrinting(false)}
+                cart={cart}
+                customerName={customerName}
+                paymentMethod={paymentMethod}
+                totalAmount={totalAmount}
+                staffName={staffName}
+            />
 
             <Snackbar
                 open={openSnackbar}
                 autoHideDuration={3000}
-                onClose={() => setOpenSnackbar(false)}
+                onClose={() => {
+                    setOpenSnackbar(false);
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                }}
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             >
                 <Alert
-                    onClose={() => setOpenSnackbar(false)}
+                    onClose={() => {
+                        setOpenSnackbar(false);
+                        setErrorMessage('');
+                        setSuccessMessage('');
+                    }}
                     severity={errorMessage ? 'error' : 'success'}
                     sx={{ width: '100%' }}
                 >

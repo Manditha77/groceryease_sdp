@@ -62,7 +62,7 @@ const updateUser = async (userId, firstName, lastName, email, phoneNo, address, 
         headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
-}
+};
 
 const deleteUser = async (userId) => {
     const token = localStorage.getItem('authToken');
@@ -106,7 +106,7 @@ const updateSupplier = async (userId, firstName, lastName, email, phoneNo, compa
         headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
-}
+};
 
 const deleteSupplier = async (userId) => {
     const token = localStorage.getItem('authToken');
@@ -114,7 +114,13 @@ const deleteSupplier = async (userId) => {
         headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
-}
+};
+
+// Add getLoggedInUser function
+const getLoggedInUser = () => {
+    const username = localStorage.getItem('username');
+    return username ? { username } : null;
+};
 
 export default {
     login,
@@ -127,4 +133,5 @@ export default {
     getUser,
     updateUser,
     updateSupplier,
+    getLoggedInUser,
 };

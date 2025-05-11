@@ -176,11 +176,11 @@ const CartItem: React.FC<CartItemProps> = ({
                         </Typography>
                     </Box>
 
-                    {item.quantity >= item.maxQuantity && (
-                        <Typography variant="caption" sx={{ color: 'warning.main', mt: 1 }}>
-                            Maximum available quantity reached
-                        </Typography>
-                    )}
+                    {/*{item.quantity >= item.maxQuantity && (*/}
+                    {/*    <Typography variant="caption" sx={{ color: 'warning.main', mt: 1 }}>*/}
+                    {/*        Maximum available quantity reached*/}
+                    {/*    </Typography>*/}
+                    {/*)}*/}
                 </Box>
             </Paper>
         </motion.div>

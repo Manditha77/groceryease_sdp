@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import {
     Typography,
     Button,
@@ -20,9 +20,18 @@ import OrderSummary from '../components/OrderSummary';
 import EmptyState from '../components/EmptyState';
 
 function Cart() {
-    const { cartItems, removeFromCart, updateQuantity, wishlistItems, toggleWishlistItem } = useContext(CartContext);
+    const { cartItems, removeFromCart, updateQuantity, wishlistItems, toggleWishlistItem, setEstimatedPickupDate } = useContext(CartContext);
     const [notification, setNotification] = useState(null);
     const navigate = useNavigate();
+
+    // Calculate today's date as the estimated pickup date
+    const today = new Date(); // Current date: May 11, 2025
+    const estimatedPickupDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+    // Store the estimated pickup date in CartContext
+    useEffect(() => {
+        setEstimatedPickupDate(estimatedPickupDate);
+    }, [estimatedPickupDate, setEstimatedPickupDate]);
 
     const handleUpdateQuantity = (productId, quantity) => {
         if (quantity <= 0) {
@@ -192,7 +201,7 @@ function Cart() {
                         noTax={true} // Indicate that tax should not be included
                     />
 
-                     {/*Pickup Information */}
+                    {/* Pickup Information */}
                     <Paper
                         elevation={0}
                         sx={{
@@ -207,6 +216,17 @@ function Cart() {
                         </Typography>
                         <Typography variant="body2" paragraph>
                             Orders are available for pickup on the estimated date during our store hours.
+                        </Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0478C0' }}>
+                            Estimated Pickup Date:
+                        </Typography>
+                        <Typography variant="body2">
+                            {new Date(estimatedPickupDate).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                            })}
                         </Typography>
                         <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0478C0', mt: 2 }}>
                             Store Hours:
