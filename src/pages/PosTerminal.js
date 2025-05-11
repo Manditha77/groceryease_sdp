@@ -8,7 +8,6 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 import productService from '../services/productServices';
 import orderServices from '../services/orderServices';
 import authService from '../services/authService';
-import Receipt from './Receipt';
 
 const PosTerminal = () => {
     const [cart, setCart] = useState([]);
@@ -33,6 +32,8 @@ const PosTerminal = () => {
     const [lastAddedItem, setLastAddedItem] = useState(null);
     const [selectedItem, setSelectedItem] = useState(null);
     const [isPrinting, setIsPrinting] = useState(false);
+    const [receipt, setReceipt] = useState(null); // New state for receipt
+    const [openReceiptDialog, setOpenReceiptDialog] = useState(false); // New state for receipt dialog
     const scannerRef = useRef(null);
 
     const loggedInUser = authService.getLoggedInUser();
@@ -274,7 +275,7 @@ const PosTerminal = () => {
                 return;
             }
 
-            if (openPaymentDialog || scannerDialogOpen) return;
+            if (openPaymentDialog || scannerDialogOpen || openReceiptDialog) return;
 
             if (cart.length === 0) return;
 
@@ -335,7 +336,7 @@ const PosTerminal = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [cart, selectedItem, products, totalAmount, openPaymentDialog, scannerDialogOpen, barcode]);
+    }, [cart, selectedItem, products, totalAmount, openPaymentDialog, scannerDialogOpen, openReceiptDialog, barcode]);
 
     const addOrUpdateCartItem = (productId) => {
         const product = products.find(p => p.productId === productId);
@@ -498,11 +499,13 @@ const PosTerminal = () => {
                     throw new Error('Invalid response from createPosOrder');
                 }
                 newOrder = response.data.order;
+                setReceipt(newOrder.receipt); // Set the receipt from the response
+                setOpenReceiptDialog(true); // Open receipt dialog
                 setSuccessMessage('Sale completed successfully!');
                 setOpenSnackbar(true);
             }
 
-            setIsPrinting(true); // Trigger printing
+            setIsPrinting(false);
             setCart([]);
             setTotalAmount(0);
             setCreditCustomerDetails({
@@ -519,6 +522,41 @@ const PosTerminal = () => {
             setErrorMessage(error.message || 'Failed to process sale. Please try again.');
             setOpenSnackbar(true);
         }
+    };
+
+    const handlePrintReceipt = () => {
+        if (!receipt) return;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+            <head><title>POS Receipt</title></head>
+            <body>
+                <pre style="font-family: Arial, sans-serif; font-size: 14px; text-align: center;">
+${receipt.receiptHeader}
+Order ID: ${receipt.orderId}
+Date: ${new Date(receipt.orderDate).toLocaleString()}
+Customer: ${receipt.customerName}
+Payment Method: ${receipt.paymentMethod}
+Staff: ${staffName}
+
+Items:
+${receipt.items.map(item => `${item.productName} x${item.quantity} @ Rs.${item.sellingPrice.toFixed(2)} = Rs.${item.subtotal.toFixed(2)}`).join('\n')}
+
+Total: Rs.${receipt.totalAmount.toFixed(2)}
+${receipt.receiptFooter}
+                </pre>
+                <script>window.print(); window.close();</script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        setOpenReceiptDialog(false); // Close dialog after printing
+    };
+
+    const handleCloseReceiptDialog = () => {
+        setOpenReceiptDialog(false);
+        setReceipt(null);
     };
 
     return (
@@ -788,15 +826,37 @@ const PosTerminal = () => {
                 </DialogActions>
             </Dialog>
 
-            <Receipt
-                isPrinting={isPrinting}
-                onPrintComplete={() => setIsPrinting(false)}
-                cart={cart}
-                customerName={customerName}
-                paymentMethod={paymentMethod}
-                totalAmount={totalAmount}
-                staffName={staffName}
-            />
+            <Dialog open={openReceiptDialog} onClose={handleCloseReceiptDialog} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ backgroundColor: '#0478C0', color: '#fff' }}>Receipt</DialogTitle>
+                <DialogContent>
+                    {receipt && (
+                        <Box sx={{ whiteSpace: 'pre-wrap', fontFamily: 'Arial, sans-serif', fontSize: '14px', textAlign: 'center' }}>
+                            {receipt.receiptHeader}
+                            <Typography>Order ID: {receipt.orderId}</Typography>
+                            <Typography>Date: {new Date(receipt.orderDate).toLocaleString()}</Typography>
+                            <Typography>Customer: {receipt.customerName}</Typography>
+                            <Typography>Payment Method: {receipt.paymentMethod}</Typography>
+                            <Typography>Staff: {staffName}</Typography>
+                            <Typography sx={{ mt: 2 }}>Items:</Typography>
+                            {receipt.items.map((item, index) => (
+                                <Typography key={index}>
+                                    {item.productName} x{item.quantity} @ Rs.{item.sellingPrice.toFixed(2)} = Rs.{item.subtotal.toFixed(2)}
+                                </Typography>
+                            ))}
+                            <Typography sx={{ mt: 2 }}>Total: Rs.{receipt.totalAmount.toFixed(2)}</Typography>
+                            <Typography>{receipt.receiptFooter}</Typography>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseReceiptDialog} color="secondary">
+                        Close
+                    </Button>
+                    <Button onClick={handlePrintReceipt} color="primary" variant="contained">
+                        Print
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             <Snackbar
                 open={openSnackbar}
