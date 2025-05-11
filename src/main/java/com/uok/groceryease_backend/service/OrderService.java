@@ -183,19 +183,6 @@ public class OrderService {
         // Save the Order first
         Order savedOrder = orderRepository.save(order);
 
-        // Create and save the LoanNotification after the Order is saved
-        if ("Credit Purpose".equals(orderDTO.getPaymentMethod()) && orderDTO.getCreditCustomerDetails() != null) {
-            User creditCustomer = savedOrder.getUser();
-            LoanNotification notification = new LoanNotification();
-            notification.setOrder(savedOrder); // Now the Order has an ID
-            notification.setUser(creditCustomer);
-            notification.setNotificationDate(LocalDateTime.now());
-            notification.setDueAmount(orderDTO.getTotalAmount());
-            notification.setNotificationMethod(creditCustomer.getEmail() != null && !creditCustomer.getEmail().isEmpty() ? "EMAIL" : "PHONE");
-            notification.setStatus("PENDING");
-            loanNotificationRepository.save(notification);
-        }
-
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
         if (!inventoryWarnings.isEmpty()) {
