@@ -7,6 +7,7 @@ import com.uok.groceryease_backend.DAO.LoanNotificationRepository;
 import com.uok.groceryease_backend.DTO.OrderDTO;
 import com.uok.groceryease_backend.DTO.OrderItemDTO;
 import com.uok.groceryease_backend.DTO.UserRegistrationDTO;
+import com.uok.groceryease_backend.DTO.ReceiptDTO;
 import com.uok.groceryease_backend.entity.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -180,17 +181,48 @@ public class OrderService {
             order.setInventoryAdjusted(true);
         }
 
-        // Save the Order first
+        // Save the Order
         Order savedOrder = orderRepository.save(order);
 
+        // Generate the Receipt
+        ReceiptDTO receiptDTO = generateReceipt(savedOrder);
+
+        // Convert Order to DTO
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
         if (!inventoryWarnings.isEmpty()) {
             savedOrderDTO.setWarnings(inventoryWarnings);
         }
 
+        // Add the receipt to the DTO
+        savedOrderDTO.setReceipt(receiptDTO);
+
         messagingTemplate.convertAndSend("/topic/orders", savedOrderDTO);
         return savedOrderDTO;
+    }
+
+    private ReceiptDTO generateReceipt(Order order) {
+        ReceiptDTO receiptDTO = new ReceiptDTO();
+        receiptDTO.setOrderId(order.getOrderId());
+        receiptDTO.setOrderDate(order.getOrderDate());
+        receiptDTO.setCustomerName(order.getCustomerName());
+        receiptDTO.setPaymentMethod(order.getPaymentMethod());
+        receiptDTO.setTotalAmount(order.getTotalAmount());
+
+        List<ReceiptDTO.ReceiptItemDTO> receiptItems = new ArrayList<>();
+        for (OrderItem item : order.getItems()) {
+            ReceiptDTO.ReceiptItemDTO receiptItem = new ReceiptDTO.ReceiptItemDTO();
+            Optional<Product> productOptional = productRepository.findById(item.getProductId());
+            String productName = productOptional.isPresent() ? productOptional.get().getProductName() : "Unknown Product";
+            receiptItem.setProductName(productName);
+            receiptItem.setQuantity(item.getQuantity());
+            receiptItem.setSellingPrice(item.getSellingPrice());
+            receiptItem.setSubtotal(item.getQuantity() * item.getSellingPrice());
+            receiptItems.add(receiptItem);
+        }
+        receiptDTO.setItems(receiptItems);
+
+        return receiptDTO;
     }
 
     public List<OrderDTO> getAllOrders() {

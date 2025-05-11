@@ -128,7 +128,7 @@ public class LoanNotificationService {
         // Set email details
         helper.setTo(notification.getUser().getEmail());
         helper.setSubject("Payment Reminder: GroceryEase Order #" + notification.getOrder().getOrderId());
-        helper.setFrom("your-email@gmail.com"); // Replace with your email
+        helper.setFrom("majectri@gmail.com"); // Replace with your email
 
         // Construct email body
         StringBuilder emailBody = new StringBuilder();
@@ -165,7 +165,7 @@ public class LoanNotificationService {
         emailBody.append("</table>")
                 .append("<p><strong>Total Amount Due:</strong> Rs.").append(String.format("%.2f", notification.getDueAmount())).append("</p>")
                 .append("<p>Please settle the outstanding amount at your earliest convenience. If you have already made the payment, please disregard this message.</p>")
-                .append("<p>For any inquiries, feel free to contact us at support@groceryease.com or call us at +1-234-567-890.</p>")
+                .append("<p>For any inquiries, feel free to contact us at majectri@gmail.com or call us at 077223273.</p>")
                 .append("<p>Thank you for choosing GroceryEase!</p>")
                 .append("<p>Best regards,<br>The GroceryEase Team</p>");
 

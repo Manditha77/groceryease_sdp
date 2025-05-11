@@ -26,6 +26,7 @@ public class OrderDTO {
     private String orderType;
     private String username;
     private CreditCustomerDetailsDTO creditCustomerDetails; // Added for credit purchases
+    private ReceiptDTO receipt;
 
     @Getter
     @Setter
