@@ -3,6 +3,13 @@ import axios from 'axios';
 const API_URL_USER = 'http://localhost:8080/api/auth';
 const API_URL_SUPPLIER = 'http://localhost:8080/api/supplier';
 
+const axiosInstance = axios.create({
+    baseURL: API_URL_USER,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
 const login = async (username, password) => {
     const response = await axios.post(`${API_URL_USER}/login`, { username, password });
     if (response.data.token) {
@@ -17,7 +24,7 @@ const getEmployees = async () => {
     const response = await axios.get(`${API_URL_USER}/employees`, {
         headers: {
             Authorization: `Bearer ${token}`,
-        }
+        },
     });
     return response.data;
 };
@@ -27,7 +34,7 @@ const getAllCustomers = async () => {
     const response = await axios.get(`${API_URL_USER}/customers`, {
         headers: {
             Authorization: `Bearer ${token}`,
-        }
+        },
     });
     return response.data;
 };
@@ -37,7 +44,7 @@ const getUser = async (username) => {
     const response = await axios.get(`${API_URL_USER}/users/${username}`, {
         headers: {
             Authorization: `Bearer ${token}`,
-        }
+        },
     });
     return response.data;
 };
@@ -57,7 +64,7 @@ const register = async (firstName, lastName, email, phoneNo, address, userType, 
     return response.data;
 };
 
-const updateUser = async (userId, firstName, lastName, email, phoneNo, address, userType, username, password) => {
+const updateUser = async (userId, firstName, lastName, email, phoneNo, address, userType, username, password, { oldPassword } = {}) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.put(`${API_URL_USER}/users/${userId}`, {
         firstName,
@@ -74,7 +81,18 @@ const updateUser = async (userId, firstName, lastName, email, phoneNo, address, 
     return response.data;
 };
 
-// New function for partial updates, excluding username and password
+const resetPassword = async (userId, oldPassword, newPassword) => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.put(`${API_URL_USER}/users/${userId}/reset-password`, {
+        oldPassword,
+        newPassword,
+    }, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+};
+
+// Other existing methods (updateUserDetails, deleteUser, getSuppliers, etc.) remain unchanged
 const updateUserDetails = async (userId, firstName, lastName, email, phoneNo, address, userType) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.put(`${API_URL_USER}/users/${userId}`, {
@@ -103,7 +121,7 @@ const getSuppliers = async () => {
     const response = await axios.get(`${API_URL_SUPPLIER}/all`, {
         headers: {
             Authorization: `Bearer ${token}`,
-        }
+        },
     });
     return response.data;
 };
@@ -161,4 +179,5 @@ export default {
     updateUserDetails,
     updateSupplier,
     getLoggedInUser,
+    resetPassword,
 };

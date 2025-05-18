@@ -25,6 +25,7 @@
     "react-router-dom": "^7.1.5",
     "react-scripts": "^5.0.1",
     "react-to-print": "^3.1.0",
+    "recharts": "^2.15.3",
     "sockjs-client": "^1.6.1",
     "web-vitals": "^4.2.4"
   },

@@ -50,6 +50,24 @@ const orderServices = {
     sendLoanNotification: (orderId) => {
         return axiosInstance.post(`/${orderId}/send-notification`);
     },
+    sendOrderReceivedNotification: (orderId) => {
+        return axiosInstance.post(`/${orderId}/send-order-received-notification`);
+    },
+    sendOrderCompletedNotification: (orderId) => {
+        return axiosInstance.post(`/${orderId}/send-order-completed-notification`);
+    },
+    getCreditOrdersByPaymentStatus: (isPaid) => {
+        return axiosInstance.get('/credit', { params: { isPaid } });
+    },
+    getTodaySales: () => {
+        return axiosInstance.get('/today');
+    },
+    getTodaySalesByCategory: () => {
+        return axiosInstance.get('/today/categories');
+    },
+    getPendingPreOrdersQuantity: () => {
+        return axiosInstance.get('/pre-orders/pending');
+    },
 };
 
 export default orderServices;

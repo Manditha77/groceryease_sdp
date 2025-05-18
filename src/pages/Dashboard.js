@@ -8,7 +8,6 @@ import {
     Grid,
     Card,
     CardContent,
-    Button,
     Table,
     TableBody,
     TableCell,
@@ -25,8 +24,12 @@ import {
     Select,
     MenuItem,
     Slide,
+    Chip,
+    Button,
+    Switch,
 } from '@mui/material';
-import { ShoppingCart, People, LocalShipping, Report } from '@mui/icons-material';
+import { ShoppingCart, People, LocalShipping, Upload } from '@mui/icons-material';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from 'recharts';
 import productService from '../services/productServices';
 import authService from '../services/authService';
 import orderServices from '../services/orderServices';
@@ -34,6 +37,7 @@ import webSocketService from '../services/webSocketService';
 
 const Dashboard = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
     const [open, setOpen] = useState(!!location.state?.success);
     const [errorMessage, setErrorMessage] = useState('');
@@ -42,14 +46,16 @@ const Dashboard = () => {
     const [updateSeverity, setUpdateSeverity] = useState('success');
     const [newOrderNotification, setNewOrderNotification] = useState(null);
     const [openNewOrderSnackbar, setOpenNewOrderSnackbar] = useState(false);
-    const navigate = useNavigate();
+    const [notificationMessage, setNotificationMessage] = useState('');
+    const [openNotificationSnackbar, setOpenNotificationSnackbar] = useState(false);
+    const [notificationSeverity, setNotificationSeverity] = useState('success');
 
     const [inventoryCount, setInventoryCount] = useState(0);
     const [lowStockCount, setLowStockCount] = useState(0);
-    const [employeeCount, setEmployeeCount] = useState(0);
-    const [supplierCount, setSupplierCount] = useState(0);
     const [lowStockProducts, setLowStockProducts] = useState([]);
     const [orders, setOrders] = useState([]);
+    const [completedPreOrdersCount, setCompletedPreOrdersCount] = useState(0);
+    const [showCompleted, setShowCompleted] = useState(false);
     const [products, setProducts] = useState([]);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [newStatus, setNewStatus] = useState('');
@@ -57,7 +63,28 @@ const Dashboard = () => {
     const [orderDialogOpen, setOrderDialogOpen] = useState(false);
     const [userType, setUserType] = useState(localStorage.getItem('userType'));
 
+    // State for new features
+    const [salesData, setSalesData] = useState({
+        totalSales: 0,
+        onlineSales: 0,
+        posSales: 0,
+    });
+    const [creditCustomers, setCreditCustomers] = useState({
+        count: 0,
+        totalDue: 0,
+    });
+    const [inventorySummary, setInventorySummary] = useState({
+        inHand: 0,
+        toReceive: 0,
+    });
+    const [salesDistribution, setSalesDistribution] = useState([]);
+    const [topCategories, setTopCategories] = useState([]);
+
     const notificationSound = new Audio('/sounds/notification.wav');
+
+    const isRechartsAvailable = () => {
+        return typeof PieChart !== 'undefined' && typeof BarChart !== 'undefined';
+    };
 
     useEffect(() => {
         if (location.state?.success) {
@@ -75,30 +102,18 @@ const Dashboard = () => {
 
     const fetchInventoryData = async () => {
         try {
-            const response = await productService.getAllProducts();
-            const products = response.data;
+            const productResponse = await productService.getAllProducts();
+            const preOrderResponse = await orderServices.getPendingPreOrdersQuantity();
+            const products = productResponse.data;
             setInventoryCount(products.length);
             setLowStockCount(products.filter(product => product.quantity < 10).length);
+            setInventorySummary({
+                inHand: products.reduce((sum, p) => sum + p.quantity, 0),
+                toReceive: preOrderResponse.data.toReceive || 0,
+            });
         } catch (error) {
             console.error('Error fetching inventory data:', error);
-        }
-    };
-
-    const fetchEmployeeData = async () => {
-        try {
-            const employees = await authService.getEmployees();
-            setEmployeeCount(employees.length);
-        } catch (error) {
-            console.error('Error fetching employee data:', error);
-        }
-    };
-
-    const fetchSupplierData = async () => {
-        try {
-            const suppliers = await authService.getSuppliers();
-            setSupplierCount(suppliers.length);
-        } catch (error) {
-            console.error('Error fetching supplier data:', error);
+            setErrorMessage('Failed to load inventory data.');
         }
     };
 
@@ -106,10 +121,10 @@ const Dashboard = () => {
         try {
             const response = await productService.getAllProducts();
             const products = response.data;
-            const lowStock = products.filter(product => product.quantity < 10);
-            setLowStockProducts(lowStock);
+            setLowStockProducts(products.filter(product => product.quantity < 10));
         } catch (error) {
             console.error('Error fetching low stock products:', error);
+            setErrorMessage('Failed to load low stock products.');
         }
     };
 
@@ -119,17 +134,27 @@ const Dashboard = () => {
             const fetchedOrders = response.data;
             if (Array.isArray(fetchedOrders)) {
                 const preOrders = fetchedOrders.filter(order =>
-                    order.orderType === 'ECOMMERCE'
+                    order.orderType === 'ECOMMERCE' &&
+                    (showCompleted
+                        ? (order.status === 'PENDING' || order.status === 'PROCESSING' || order.status === 'COMPLETED')
+                        : (order.status === 'PENDING' || order.status === 'PROCESSING'))
                 );
                 setOrders(preOrders);
+
+                const completedCount = fetchedOrders.filter(order =>
+                    order.orderType === 'ECOMMERCE' && order.status === 'COMPLETED'
+                ).length;
+                setCompletedPreOrdersCount(completedCount);
             } else {
                 console.error('Fetched orders is not an array:', fetchedOrders);
                 setOrders([]);
+                setCompletedPreOrdersCount(0);
                 setErrorMessage('Failed to load orders. Unexpected response format.');
             }
         } catch (error) {
             console.error('Error fetching orders:', error);
             setOrders([]);
+            setCompletedPreOrdersCount(0);
             const message = error.response?.data?.message || error.message || 'Failed to load orders. Please try again later.';
             setErrorMessage(message);
         }
@@ -151,18 +176,84 @@ const Dashboard = () => {
         }
     };
 
+    const fetchSalesData = async () => {
+        try {
+            const response = await orderServices.getTodaySales();
+            setSalesData(response.data);
+        } catch (error) {
+            console.error('Error fetching sales data:', error);
+            setErrorMessage('Failed to load sales data.');
+            setSalesData({ totalSales: 0, onlineSales: 0, posSales: 0 });
+        }
+    };
+
+    const fetchCreditCustomers = async () => {
+        try {
+            const response = await orderServices.getCreditOrdersByPaymentStatus(false);
+            const unpaidOrders = response.data;
+            setCreditCustomers({
+                count: new Set(unpaidOrders.map(order => order.customerName)).size,
+                totalDue: unpaidOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+            });
+        } catch (error) {
+            console.error('Error fetching credit customers:', error);
+            setErrorMessage('Failed to load credit customers.');
+        }
+    };
+
+    const fetchSalesDistribution = async () => {
+        try {
+            const response = await orderServices.getTodaySales();
+            const { onlineSales, posSales } = response.data;
+            const distribution = [
+                { name: 'Online Sales', value: onlineSales || 0 },
+                { name: 'POS Sales', value: posSales || 0 },
+            ];
+            setSalesDistribution(distribution);
+        } catch (error) {
+            console.error('Error fetching sales distribution:', error);
+            setErrorMessage('Failed to load sales distribution.');
+            setSalesDistribution([]);
+        }
+    };
+
+    const fetchTopCategories = async () => {
+        try {
+            const response = await orderServices.getTodaySalesByCategory();
+            const topCategories = response.data
+                .slice(0, 4)
+                .map(item => ({
+                    name: item.categoryName,
+                    sales: item.sales,
+                }));
+            setTopCategories(topCategories);
+        } catch (error) {
+            console.error('Error fetching top categories:', error);
+            setErrorMessage('Failed to load top categories.');
+            setTopCategories([]);
+        }
+    };
+
     useEffect(() => {
         fetchInventoryData();
-        fetchEmployeeData();
-        fetchSupplierData();
         fetchLowStockProducts();
         fetchOrders();
         fetchProducts();
+        fetchSalesData();
+        fetchCreditCustomers();
+        fetchSalesDistribution();
+        fetchTopCategories();
 
         webSocketService.connect((newOrder) => {
-            setOrders((prevOrders) => [newOrder, ...prevOrders].filter(order =>
-                order.orderType === 'ECOMMERCE' && order.status === 'PENDING'
-            ));
+            setOrders((prevOrders) => {
+                const updatedOrders = [newOrder, ...prevOrders].filter(order =>
+                    order.orderType === 'ECOMMERCE' &&
+                    (showCompleted
+                        ? (order.status === 'PENDING' || order.status === 'PROCESSING' || order.status === 'COMPLETED')
+                        : (order.status === 'PENDING' || order.status === 'PROCESSING'))
+                );
+                return updatedOrders;
+            });
             setNewOrderNotification(newOrder);
             setOpenNewOrderSnackbar(true);
         });
@@ -170,7 +261,7 @@ const Dashboard = () => {
         return () => {
             webSocketService.disconnect();
         };
-    }, []);
+    }, [showCompleted]);
 
     useEffect(() => {
         if (openNewOrderSnackbar) {
@@ -191,6 +282,10 @@ const Dashboard = () => {
     const handleNewOrderSnackbarClose = () => {
         setOpenNewOrderSnackbar(false);
         setNewOrderNotification(null);
+    };
+
+    const handleNotificationSnackbarClose = () => {
+        setOpenNotificationSnackbar(false);
     };
 
     const handleOrderClick = (order) => {
@@ -215,12 +310,10 @@ const Dashboard = () => {
         setIsUpdating(true);
         try {
             const orderId = selectedOrder.orderId;
-
             const response = await orderServices.updateOrderStatus(orderId, newStatus);
             console.log('Updated order from backend:', response.data);
 
             await fetchOrders();
-
             const updatedOrderResponse = await orderServices.getOrderById(orderId);
             const updatedOrder = updatedOrderResponse.data;
             setSelectedOrder(updatedOrder);
@@ -249,24 +342,57 @@ const Dashboard = () => {
         }
     };
 
+    const handleSendOrderReceivedNotification = async () => {
+        if (!selectedOrder) return;
+
+        try {
+            const response = await orderServices.sendOrderReceivedNotification(selectedOrder.orderId);
+            setNotificationMessage(response.data.message);
+            setNotificationSeverity('success');
+            setOpenNotificationSnackbar(true);
+        } catch (error) {
+            console.error('Error sending order received notification:', error);
+            const message = error.response?.data?.message || 'Failed to send order received notification.';
+            setNotificationMessage(message);
+            setNotificationSeverity('error');
+            setOpenNotificationSnackbar(true);
+        }
+    };
+
+    const handleSendOrderCompletedNotification = async () => {
+        if (!selectedOrder) return;
+
+        try {
+            const response = await orderServices.sendOrderCompletedNotification(selectedOrder.orderId);
+            setNotificationMessage(response.data.message);
+            setNotificationSeverity('success');
+            setOpenNotificationSnackbar(true);
+        } catch (error) {
+            console.error('Error sending order completed notification:', error);
+            const message = error.response?.data?.message || 'Failed to send order completed notification.';
+            setNotificationMessage(message);
+            setNotificationSeverity('error');
+            setOpenNotificationSnackbar(true);
+        }
+    };
+
     const getProductName = (productId) => {
         const product = products.find(p => p.productId === productId);
         return product ? product.productName : `Product ID: ${productId} (Not Found)`;
+    };
+
+    const handleSwitchChange = (event) => {
+        setShowCompleted(event.target.checked);
     };
 
     const TransitionRight = (props) => {
         return <Slide {...props} direction="left" />;
     };
 
-    // Define quick actions based on user role
-    const quickActions = [
-        { path: '/inventory', icon: <ShoppingCart />, text: 'Add New Product', roles: ['OWNER'] },
-        { path: '/manage-employees', icon: <People />, text: 'Manage Employees', roles: ['OWNER'] },
-        { path: '/manage-suppliers', icon: <LocalShipping />, text: 'Manage Suppliers', roles: ['OWNER'] },
-    ];
+    const COLORS = ['#42A5F5', '#90CAF9'];
 
     return (
-        <Box sx={{ padding: 4, paddingTop: 7 }}>
+        <Box sx={{ padding: 4, paddingTop: 7, bgcolor: '#F5F7FA' }}>
             <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
                 <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
                     {successMessage}
@@ -300,175 +426,257 @@ const Dashboard = () => {
                 </Alert>
             </Snackbar>
 
-            <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
+            <Snackbar
+                open={openNotificationSnackbar}
+                autoHideDuration={6000}
+                onClose={handleNotificationSnackbarClose}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert onClose={handleNotificationSnackbarClose} severity={notificationSeverity} sx={{ width: '100%' }}>
+                    {notificationMessage}
+                </Alert>
+            </Snackbar>
+
+            <Typography variant="h4" gutterBottom sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
                 Dashboard
             </Typography>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={6} lg={3}>
-                    <Card sx={{ bgcolor: '#E3F2FD', borderRadius: 2 }}>
+                {/* Left Side: 2/3 of the screen */}
+                <Grid item xs={12} md={8}>
+                    {/* Inventory Overview and Sales */}
+                    <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h6" sx={{ color: '#1565C0', fontWeight: 'bold' }}>
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>
                                 Inventory Overview
                             </Typography>
-                            <Typography variant="h4" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
-                                {inventoryCount}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#1565C0' }}>
-                                Total Products
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#FF6F00' }}>
-                                Low Stock: {lowStockCount}
-                            </Typography>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>Total Products</Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>{inventoryCount}</Typography>
+                                    <Typography variant="body2" sx={{ color: '#FF5252' }}>
+                                        Low Stock: {lowStockCount}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>Current Stock</Typography>
+                                    <Typography variant="h4" sx={{ color: '#2E7D32' }}>{inventorySummary.inHand}</Typography>
+                                    <Typography variant="body2" sx={{ color: '#424242' }}>
+                                        To Receive: {inventorySummary.toReceive}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>Credit Customers</Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>{creditCustomers.count}</Typography>
+                                    <Typography variant="body2" sx={{ color: '#424242' }}>
+                                        Total Due: Rs. {creditCustomers.totalDue.toLocaleString()}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
                         </CardContent>
                     </Card>
-                </Grid>
 
-                <Grid item xs={12} md={6} lg={3}>
-                    <Card sx={{ bgcolor: '#E8F5E9', borderRadius: 2 }}>
+                    {/* Sales Data */}
+                    <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h6" sx={{ color: '#2E7D32', fontWeight: 'bold' }}>
-                                Employees
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>
+                                Today's Sales
                             </Typography>
-                            <Typography variant="h4" sx={{ color: '#43A047', fontWeight: 'bold' }}>
-                                {employeeCount}
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#2E7D32' }}>
-                                Total Employees
-                            </Typography>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>Total Sales</Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
+                                        Rs. {salesData.totalSales.toLocaleString()}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>Online Sales</Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
+                                        Rs. {salesData.onlineSales.toLocaleString()}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="h6" sx={{ color: '#424242' }}>POS Sales</Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
+                                        Rs. {salesData.posSales.toLocaleString()}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
                         </CardContent>
                     </Card>
+
+                    {/* Charts */}
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                            <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
+                                <CardContent>
+                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
+                                        Sales Distribution
+                                    </Typography>
+                                    {isRechartsAvailable() && (
+                                        <ResponsiveContainer width="100%" height={200}>
+                                            <PieChart>
+                                                <Pie
+                                                    data={salesDistribution}
+                                                    dataKey="value"
+                                                    nameKey="name"
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={80}
+                                                    label
+                                                >
+                                                    {salesDistribution.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <ChartTooltip />
+                                                <Legend />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
+                                <CardContent>
+                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
+                                        Top Categories
+                                    </Typography>
+                                    {isRechartsAvailable() && (
+                                        <ResponsiveContainer width="100%" height={200}>
+                                            <BarChart data={topCategories}>
+                                                <XAxis dataKey="name" />
+                                                <YAxis />
+                                                <ChartTooltip />
+                                                <Bar dataKey="sales" fill="#90CAF9" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
                 </Grid>
 
-                <Grid item xs={12} md={6} lg={3}>
-                    <Card sx={{ bgcolor: '#FFF3E0', borderRadius: 2 }}>
+                {/* Right Side: 1/3 of the screen */}
+                <Grid item xs={12} md={4}>
+                    {/* Pre-Orders */}
+                    <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h6" sx={{ color: '#EF6C00', fontWeight: 'bold' }}>
-                                Suppliers
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 1 }}>
+                                Pre-Orders
                             </Typography>
-                            <Typography variant="h4" sx={{ color: '#FB8C00', fontWeight: 'bold' }}>
-                                {supplierCount}
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                <Typography variant="h6" sx={{ color: '#424242' }}>
+                                    Completed Pre-Orders: {completedPreOrdersCount}
+                                </Typography>
+                                <Box>
+                                    <Switch
+                                        checked={showCompleted}
+                                        onChange={handleSwitchChange}
+                                        color="primary"
+                                        inputProps={{ 'aria-label': 'Show Completed Orders' }}
+                                        title="Show Completed Orders"
+                                    />
+                                </Box>
+                            </Box>
+                            {errorMessage && (
+                                <Typography variant="body1" sx={{ color: '#FF5252', mb: 2 }}>
+                                    {errorMessage}
+                                </Typography>
+                            )}
+                            {Array.isArray(orders) && orders.length > 0 ? (
+                                <TableContainer component={Paper}>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Order ID</TableCell>
+                                                <TableCell>Customer Name</TableCell>
+                                                <TableCell>Payment Method</TableCell>
+                                                <TableCell>Total Amount</TableCell>
+                                                <TableCell>Status</TableCell>
+                                                <TableCell>Order Date</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {orders.map((order) => (
+                                                <TableRow
+                                                    key={order.orderId || 'unknown'}
+                                                    onClick={() => handleOrderClick(order)}
+                                                    sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }}
+                                                >
+                                                    <TableCell>{order.orderId || 'N/A'}</TableCell>
+                                                    <TableCell>{order.customerName || 'N/A'}</TableCell>
+                                                    <TableCell>{order.paymentMethod || 'N/A'}</TableCell>
+                                                    <TableCell>Rs.{order.totalAmount !== undefined ? order.totalAmount : '0'}</TableCell>
+                                                    <TableCell>{order.status || 'N/A'}</TableCell>
+                                                    <TableCell>
+                                                        {order.orderDate ? new Date(order.orderDate).toLocaleString() : 'N/A'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography variant="body1" sx={{ color: '#757575' }}>
+                                    {showCompleted
+                                        ? 'No pending, processing, or completed pre-orders available.'
+                                        : 'No pending or processing pre-orders available.'}
+                                </Typography>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Low Stock Products */}
+                    <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
+                        <CardContent>
+                            <Typography variant="h5" sx={{ color: '#FF5252', fontWeight: 'bold', mb: 2 }}>
+                                Low Stock Products
                             </Typography>
-                            <Typography variant="body2" sx={{ color: '#EF6C00' }}>
-                                Active Suppliers
-                            </Typography>
+                            {lowStockProducts.length > 0 ? (
+                                <TableContainer component={Paper}>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Product Name</TableCell>
+                                                <TableCell align="right">Quantity</TableCell>
+                                                <TableCell align="right">Category</TableCell>
+                                                <TableCell align="right">Company</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {lowStockProducts.map((product) => (
+                                                <TableRow key={product.productId}>
+                                                    <TableCell>
+                                                        {product.productName}
+                                                        {product.quantity === 0 && (
+                                                            <Chip
+                                                                label="Out of Stock"
+                                                                color="error"
+                                                                size="small"
+                                                                sx={{ ml: 1, bgcolor: '#FF5252', color: '#fff' }}
+                                                            />
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">{product.quantity}</TableCell>
+                                                    <TableCell align="right">{product.categoryName}</TableCell>
+                                                    <TableCell align="right">{product.supplierCompanyName}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography variant="body1" sx={{ color: '#757575' }}>
+                                    No products are running low on stock.
+                                </Typography>
+                            )}
                         </CardContent>
                     </Card>
                 </Grid>
             </Grid>
-
-            <Box sx={{ marginTop: 4 }}>
-                {userType === 'OWNER' && (
-                    <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
-                        Quick Actions
-                    </Typography>
-                )}
-                {userType === 'OWNER' && (
-                    <Grid container spacing={2}>
-                        {quickActions.map((action, index) => (
-                            <Grid item xs={12} md={4} key={index}>
-                                <Button
-                                    variant="contained"
-                                    startIcon={action.icon}
-                                    sx={{
-                                        width: '100%',
-                                        height: 60,
-                                        bgcolor: index === 0 ? '#1E88E5' : index === 1 ? '#43A047' : '#FB8C00',
-                                        color: '#fff',
-                                        fontWeight: 'bold',
-                                    }}
-                                    onClick={() => navigate(action.path)}
-                                >
-                                    {action.text}
-                                </Button>
-                            </Grid>
-                        ))}
-                    </Grid>
-                )}
-            </Box>
-
-            <Box sx={{ marginTop: 4 }}>
-                <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
-                    Pre-Orders
-                </Typography>
-                {errorMessage && (
-                    <Typography variant="body1" sx={{ color: 'red', mb: 2 }}>
-                        {errorMessage}
-                    </Typography>
-                )}
-                {Array.isArray(orders) && orders.length > 0 ? (
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Order ID</TableCell>
-                                    <TableCell>Customer Name</TableCell>
-                                    <TableCell>Payment Method</TableCell>
-                                    <TableCell>Total Amount</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Order Date</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {orders.map((order) => (
-                                    <TableRow
-                                        key={order.orderId || 'unknown'}
-                                        onClick={() => handleOrderClick(order)}
-                                        sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }}
-                                    >
-                                        <TableCell>{order.orderId || 'N/A'}</TableCell>
-                                        <TableCell>{order.customerName || 'N/A'}</TableCell>
-                                        <TableCell>{order.paymentMethod || 'N/A'}</TableCell>
-                                        <TableCell>Rs.{order.totalAmount !== undefined ? order.totalAmount : '0'}</TableCell>
-                                        <TableCell>{order.status || 'N/A'}</TableCell>
-                                        <TableCell>
-                                            {order.orderDate ? new Date(order.orderDate).toLocaleString() : 'N/A'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                ) : (
-                    <Typography variant="body1" sx={{ color: '#757575' }}>
-                        No pre-orders available.
-                    </Typography>
-                )}
-            </Box>
-
-            <Box sx={{ marginTop: 4 }}>
-                <Typography variant="h5" gutterBottom sx={{ color: '#FF6F00', fontWeight: 'bold' }}>
-                    Low Stock Products
-                </Typography>
-                {lowStockProducts.length > 0 ? (
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Product Name</TableCell>
-                                    <TableCell align="right">Quantity</TableCell>
-                                    <TableCell align="right">Category</TableCell>
-                                    <TableCell align="right">Company</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {lowStockProducts.map((product) => (
-                                    <TableRow key={product.productId}>
-                                        <TableCell>{product.productName}</TableCell>
-                                        <TableCell align="right">{product.quantity}</TableCell>
-                                        <TableCell align="right">{product.categoryName}</TableCell>
-                                        <TableCell align="right">{product.supplierCompanyName}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                ) : (
-                    <Typography variant="body1" sx={{ color: '#757575' }}>
-                        No products are running low on stock.
-                    </Typography>
-                )}
-            </Box>
 
             <Dialog open={orderDialogOpen} onClose={handleOrderDialogClose} maxWidth="md" fullWidth>
                 <DialogTitle>Order Details - Order ID: {selectedOrder?.orderId || 'N/A'}</DialogTitle>
@@ -534,6 +742,22 @@ const Dashboard = () => {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleOrderDialogClose} disabled={isUpdating}>Close</Button>
+                    <Button
+                        onClick={handleSendOrderReceivedNotification}
+                        color="secondary"
+                        variant="contained"
+                        disabled={isUpdating}
+                    >
+                        Send Order Received Email
+                    </Button>
+                    <Button
+                        onClick={handleSendOrderCompletedNotification}
+                        color="success"
+                        variant="contained"
+                        disabled={isUpdating || selectedOrder?.status !== 'COMPLETED'}
+                    >
+                        Send Order Completed Email
+                    </Button>
                     <Button
                         onClick={handleStatusUpdate}
                         color="primary"
