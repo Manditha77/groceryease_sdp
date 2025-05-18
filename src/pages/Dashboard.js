@@ -55,6 +55,7 @@ const Dashboard = () => {
     const [newStatus, setNewStatus] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
     const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+    const [userType, setUserType] = useState(localStorage.getItem('userType'));
 
     const notificationSound = new Audio('/sounds/notification.wav');
 
@@ -63,6 +64,14 @@ const Dashboard = () => {
             setTimeout(() => setOpen(false), 3000);
         }
     }, [location.state]);
+
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setUserType(localStorage.getItem('userType'));
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
 
     const fetchInventoryData = async () => {
         try {
@@ -109,7 +118,6 @@ const Dashboard = () => {
             const response = await orderServices.getAllOrders();
             const fetchedOrders = response.data;
             if (Array.isArray(fetchedOrders)) {
-                // Filter for e-commerce pre-orders (orderType: ECOMMERCE, status: PENDING)
                 const preOrders = fetchedOrders.filter(order =>
                     order.orderType === 'ECOMMERCE'
                 );
@@ -208,19 +216,15 @@ const Dashboard = () => {
         try {
             const orderId = selectedOrder.orderId;
 
-            // Update the order status
             const response = await orderServices.updateOrderStatus(orderId, newStatus);
-            console.log('Updated order from backend:', response.data); // Log the response to debug
+            console.log('Updated order from backend:', response.data);
 
-            // Refetch all orders to ensure the table is updated with complete data
             await fetchOrders();
 
-            // Fetch the specific order to update the dialog
             const updatedOrderResponse = await orderServices.getOrderById(orderId);
             const updatedOrder = updatedOrderResponse.data;
             setSelectedOrder(updatedOrder);
 
-            // Refresh product and inventory data
             await fetchProducts();
             await fetchLowStockProducts();
             await fetchInventoryData();
@@ -253,6 +257,13 @@ const Dashboard = () => {
     const TransitionRight = (props) => {
         return <Slide {...props} direction="left" />;
     };
+
+    // Define quick actions based on user role
+    const quickActions = [
+        { path: '/inventory', icon: <ShoppingCart />, text: 'Add New Product', roles: ['OWNER'] },
+        { path: '/manage-employees', icon: <People />, text: 'Manage Employees', roles: ['OWNER'] },
+        { path: '/manage-suppliers', icon: <LocalShipping />, text: 'Manage Suppliers', roles: ['OWNER'] },
+    ];
 
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
@@ -344,60 +355,36 @@ const Dashboard = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-
-                <Grid item xs={12} md={6} lg={3}>
-                    <Card sx={{ bgcolor: '#FCE4EC', borderRadius: 2 }}>
-                        <CardContent>
-                            <Typography variant="h6" sx={{ color: '#C2185B', fontWeight: 'bold' }}>
-                                Reports
-                            </Typography>
-                            <Typography variant="h4" sx={{ color: '#E91E63', fontWeight: 'bold' }}>
-                                10
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#C2185B' }}>
-                                Generated Reports
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
             </Grid>
 
             <Box sx={{ marginTop: 4 }}>
-                <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
-                    Quick Actions
-                </Typography>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} md={4}>
-                        <Button
-                            variant="contained"
-                            startIcon={<ShoppingCart />}
-                            sx={{ width: '100%', height: 60, bgcolor: '#1E88E5', color: '#fff', fontWeight: 'bold' }}
-                            onClick={() => navigate('/inventory')}
-                        >
-                            Add New Product
-                        </Button>
+                {userType === 'OWNER' && (
+                    <Typography variant="h5" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
+                        Quick Actions
+                    </Typography>
+                )}
+                {userType === 'OWNER' && (
+                    <Grid container spacing={2}>
+                        {quickActions.map((action, index) => (
+                            <Grid item xs={12} md={4} key={index}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={action.icon}
+                                    sx={{
+                                        width: '100%',
+                                        height: 60,
+                                        bgcolor: index === 0 ? '#1E88E5' : index === 1 ? '#43A047' : '#FB8C00',
+                                        color: '#fff',
+                                        fontWeight: 'bold',
+                                    }}
+                                    onClick={() => navigate(action.path)}
+                                >
+                                    {action.text}
+                                </Button>
+                            </Grid>
+                        ))}
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Button
-                            variant="contained"
-                            startIcon={<People />}
-                            sx={{ width: '100%', height: 60, bgcolor: '#43A047', color: '#fff', fontWeight: 'bold' }}
-                            onClick={() => navigate('/manage-employees')}
-                        >
-                            Manage Employees
-                        </Button>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Button
-                            variant="contained"
-                            startIcon={<LocalShipping />}
-                            sx={{ width: '100%', height: 60, bgcolor: '#FB8C00', color: '#fff', fontWeight: 'bold' }}
-                            onClick={() => navigate('/manage-suppliers')}
-                        >
-                            Manage Suppliers
-                        </Button>
-                    </Grid>
-                </Grid>
+                )}
             </Box>
 
             <Box sx={{ marginTop: 4 }}>

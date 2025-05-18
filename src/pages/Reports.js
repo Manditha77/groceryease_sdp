@@ -334,8 +334,8 @@ const Reports = () => {
     };
 
     return (
-        <Box sx={{ padding: 4 }}>
-            <Typography variant="h4" gutterBottom paddingTop="30px">
+        <Box sx={{ padding: 4, paddingTop: 7}}>
+            <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                 Reports
             </Typography>
             <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>

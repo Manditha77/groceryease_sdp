@@ -22,6 +22,16 @@ const getEmployees = async () => {
     return response.data;
 };
 
+const getAllCustomers = async () => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get(`${API_URL_USER}/customers`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        }
+    });
+    return response.data;
+};
+
 const getUser = async (username) => {
     const token = localStorage.getItem('authToken');
     const response = await axios.get(`${API_URL_USER}/users/${username}`, {
@@ -58,6 +68,22 @@ const updateUser = async (userId, firstName, lastName, email, phoneNo, address, 
         userType,
         username,
         password,
+    }, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+};
+
+// New function for partial updates, excluding username and password
+const updateUserDetails = async (userId, firstName, lastName, email, phoneNo, address, userType) => {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.put(`${API_URL_USER}/users/${userId}`, {
+        firstName,
+        lastName,
+        email,
+        phoneNo,
+        address,
+        userType,
     }, {
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -116,7 +142,6 @@ const deleteSupplier = async (userId) => {
     return response.data;
 };
 
-// Add getLoggedInUser function
 const getLoggedInUser = () => {
     const username = localStorage.getItem('username');
     return username ? { username } : null;
@@ -126,12 +151,14 @@ export default {
     login,
     register,
     getEmployees,
+    getAllCustomers,
     deleteUser,
     getSuppliers,
     registerSupplier,
     deleteSupplier,
     getUser,
     updateUser,
+    updateUserDetails,
     updateSupplier,
     getLoggedInUser,
 };

@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Autocomplete } from "@mui/material";
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Autocomplete, FormControlLabel, Checkbox } from "@mui/material";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import UpdateIcon from '@mui/icons-material/Update';
 import defaultImage from '../images/unnamed.jpg';
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
@@ -24,12 +25,18 @@ const Inventory = () => {
     ];
 
     const [restockDialogOpen, setRestockDialogOpen] = useState(false);
+    const [updateBatchDialogOpen, setUpdateBatchDialogOpen] = useState(false);
+    const [restockConfirmDialogOpen, setRestockConfirmDialogOpen] = useState(false);
+    const [updateBatchConfirmDialogOpen, setUpdateBatchConfirmDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [batches, setBatches] = useState([]);
     const [selectedBatch, setSelectedBatch] = useState(null);
     const [newStock, setNewStock] = useState("");
     const [newBuyingPrice, setNewBuyingPrice] = useState("");
     const [newSellingPrice, setNewSellingPrice] = useState("");
+    const [updatedQuantity, setUpdatedQuantity] = useState("");
+    const [updatedBuyingPrice, setUpdatedBuyingPrice] = useState("");
+    const [updatedSellingPrice, setUpdatedSellingPrice] = useState("");
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
     const [formData, setFormData] = useState({
@@ -42,6 +49,7 @@ const Inventory = () => {
         image: defaultImage,
         barcode: '',
     });
+    const [useBarcode, setUseBarcode] = useState(true);
     const [formDataCategory, setFormDataCategory] = useState({
         newCategoryName: ''
     });
@@ -51,6 +59,7 @@ const Inventory = () => {
     const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
     const [categoryDeleteDialogOpen, setCategoryDeleteDialogOpen] = useState(false);
+    const [categoryUpdateDialogOpen, setCategoryUpdateDialogOpen] = useState(false);
     const [categoryRegisterDialogOpen, setCategoryRegisterDialogOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -62,6 +71,7 @@ const Inventory = () => {
     const [scannerDialogOpen, setScannerDialogOpen] = useState(false);
     const scannerRef = useRef(null);
     const readerRef = useRef(null);
+    const [isManualBarcode, setIsManualBarcode] = useState(false);
 
     useEffect(() => {
         fetchProducts();
@@ -76,6 +86,15 @@ const Inventory = () => {
         }
     };
 
+    const fetchCategories = async () => {
+        try {
+            const response = await categoryService.getAllCategories();
+            setCategories(response.data);
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+        }
+    };
+
     const filteredProducts = products.filter((product) => {
         const filterValue = product[filterType]?.toString().toLowerCase() || "";
         if (["quantity", "buyingPrice", "sellingPrice"].includes(filterType)) {
@@ -86,11 +105,15 @@ const Inventory = () => {
 
     const handleOpenRestockDialog = async (product) => {
         setSelectedProduct(product);
-        try {
-            const response = await productServices.getProductBatches(product.productId);
-            setBatches(response.data);
-        } catch (error) {
-            console.error("Error fetching batches:", error);
+        if (product) {
+            try {
+                const response = await productServices.getProductBatches(product.productId);
+                setBatches(response.data);
+            } catch (error) {
+                console.error("Error fetching batches:", error);
+                setBatches([]);
+            }
+        } else {
             setBatches([]);
         }
         setRestockDialogOpen(true);
@@ -106,19 +129,30 @@ const Inventory = () => {
         setNewSellingPrice("");
     };
 
-    const handleRestock = async () => {
+    const handleOpenRestockConfirmDialog = () => {
         if (!selectedProduct || !newStock || isNaN(newStock) || newStock <= 0) {
-            setSnackbarErrorMessage("Please enter a valid stock quantity");
+            setSnackbarErrorMessage("Please select a product and enter a valid stock quantity");
             setSnackbarErrorOpen(true);
+            handleCloseRestockDialog();
             return;
         }
 
         if (!selectedBatch && (!newBuyingPrice || !newSellingPrice || newBuyingPrice <= 0 || newSellingPrice <= 0)) {
             setSnackbarErrorMessage("Please enter valid buying and selling prices for a new batch");
             setSnackbarErrorOpen(true);
+            handleCloseRestockDialog();
             return;
         }
 
+        setRestockConfirmDialogOpen(true);
+    };
+
+    const handleCloseRestockConfirmDialog = () => {
+        setRestockConfirmDialogOpen(false);
+        handleCloseRestockDialog();
+    };
+
+    const handleRestock = async () => {
         try {
             await productServices.restockProduct(
                 selectedProduct.productId,
@@ -130,20 +164,102 @@ const Inventory = () => {
 
             setSnackbarMessage("Stock updated successfully");
             setSnackbarOpen(true);
-            fetchProducts(); // Refresh the product list
+            fetchProducts();
         } catch (error) {
             console.error("Error updating stock:", error);
             setSnackbarErrorMessage("Failed to update stock: " + (error.response?.data?.message || error.message));
             setSnackbarErrorOpen(true);
         } finally {
-            handleCloseRestockDialog();
+            handleCloseRestockConfirmDialog();
+        }
+    };
+
+    const handleOpenUpdateBatchDialog = async (product) => {
+        setSelectedProduct(product);
+        if (product) {
+            try {
+                const response = await productServices.getProductBatches(product.productId);
+                setBatches(response.data);
+            } catch (error) {
+                console.error("Error fetching batches:", error);
+                setBatches([]);
+            }
+        } else {
+            setBatches([]);
+        }
+        setUpdateBatchDialogOpen(true);
+    };
+
+    const handleCloseUpdateBatchDialog = () => {
+        setUpdateBatchDialogOpen(false);
+        setSelectedProduct(null);
+        setSelectedBatch(null);
+        setBatches([]);
+        setUpdatedQuantity("");
+        setUpdatedBuyingPrice("");
+        setUpdatedSellingPrice("");
+    };
+
+    const handleOpenUpdateBatchConfirmDialog = () => {
+        if (!selectedProduct || !selectedBatch) {
+            setSnackbarErrorMessage("Please select a product and batch");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        if (!updatedQuantity || isNaN(updatedQuantity) || updatedQuantity < 0) {
+            setSnackbarErrorMessage("Please enter a valid quantity (non-negative)");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        if (!updatedBuyingPrice || !updatedSellingPrice || updatedBuyingPrice <= 0 || updatedSellingPrice <= 0) {
+            setSnackbarErrorMessage("Please enter valid buying and selling prices (greater than zero)");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        if (parseFloat(updatedBuyingPrice) > parseFloat(updatedSellingPrice)) {
+            setSnackbarErrorMessage("Buying price must be less than or equal to selling price");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        setUpdateBatchConfirmDialogOpen(true);
+    };
+
+    const handleCloseUpdateBatchConfirmDialog = () => {
+        setUpdateBatchConfirmDialogOpen(false);
+        handleCloseUpdateBatchDialog();
+    };
+
+    const handleUpdateBatch = async () => {
+        try {
+            await productServices.updateBatch(
+                selectedBatch.batchId,
+                parseInt(updatedQuantity, 10),
+                parseFloat(updatedBuyingPrice),
+                parseFloat(updatedSellingPrice)
+            );
+
+            setSnackbarMessage("Batch updated successfully");
+            setSnackbarOpen(true);
+            fetchProducts();
+        } catch (error) {
+            console.error("Error updating batch:", error);
+            setSnackbarErrorMessage("Failed to update batch: " + (error.response?.data?.message || error.message));
+            setSnackbarErrorOpen(true);
+        } finally {
+            handleCloseUpdateBatchConfirmDialog();
         }
     };
 
     useEffect(() => {
-        categoryService.getAllCategories().then(response => {
-            setCategories(response.data);
-        });
+        fetchCategories();
     }, []);
 
     useEffect(() => {
@@ -175,6 +291,7 @@ const Inventory = () => {
 
             scanner.render((data) => {
                 setFormData(prev => ({ ...prev, barcode: data }));
+                setIsManualBarcode(false);
                 setSnackbarMessage("Barcode scanned and set: " + data);
                 setSnackbarOpen(true);
                 handleCloseScannerDialog();
@@ -200,6 +317,9 @@ const Inventory = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+        if (name === "barcode") {
+            setIsManualBarcode(true);
+        }
         setFormData({
             ...formData,
             [name]: value
@@ -265,6 +385,24 @@ const Inventory = () => {
     };
 
     const handleOpenRegisterDialog = () => {
+        if (useBarcode && formData.barcode && isManualBarcode) {
+            const barcodePattern = /^\d{13}$/;
+            if (!barcodePattern.test(formData.barcode)) {
+                setSnackbarErrorMessage("Barcode must be exactly 13 digits with no letters or special characters");
+                setSnackbarErrorOpen(true);
+                return;
+            }
+
+            const barcodeExists = products.some(product =>
+                product.barcode === formData.barcode &&
+                (!isEditMode || product.productId !== selectedProductId)
+            );
+            if (barcodeExists) {
+                setSnackbarErrorMessage("This barcode is already associated with another product");
+                setSnackbarErrorOpen(true);
+                return;
+            }
+        }
         setRegisterDialogOpen(true);
     };
 
@@ -273,27 +411,149 @@ const Inventory = () => {
     };
 
     const handleConfirmRegisterProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName || !formData.quantity || !formData.buyingPrice || !formData.sellingPrice) {
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
             setSnackbarErrorMessage('Please fill in all required fields');
             setSnackbarErrorOpen(true);
             return;
         }
 
-        if (formData.quantity <= 0) {
-            setSnackbarErrorMessage('Quantity must be greater than zero');
+        if (!isEditMode) {
+            if (!formData.quantity || Number(formData.quantity) <= 0) {
+                setSnackbarErrorMessage('Quantity must be greater than zero');
+                setSnackbarErrorOpen(true);
+                return;
+            }
+
+            if (!formData.buyingPrice || !formData.sellingPrice || Number(formData.buyingPrice) <= 0 || Number(formData.sellingPrice) <= 0) {
+                setSnackbarErrorMessage('Buying and selling prices must be greater than zero');
+                setSnackbarErrorOpen(true);
+                return;
+            }
+
+            if (Number(formData.buyingPrice) > Number(formData.sellingPrice)) {
+                setSnackbarErrorMessage('Buying price must be less than or equal to selling price');
+                setSnackbarErrorOpen(true);
+                return;
+            }
+        }
+
+        const categoryExists = categories.some(category => category.categoryName === formData.categoryName);
+        if (!categoryExists) {
+            setSnackbarErrorMessage('Category does not exist');
             setSnackbarErrorOpen(true);
             return;
         }
 
-        if (formData.buyingPrice > formData.sellingPrice) {
-            setSnackbarErrorMessage('Buying price must be less than or equal to selling price');
+        const supplierExists = suppliers.some(supplier => supplier.companyName === formData.supplierCompanyName);
+        if (!supplierExists) {
+            setSnackbarErrorMessage('Supplier does not exist');
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const productExists = products.some(product => product.productName === formData.productName);
-        if (productExists) {
-            setSnackbarErrorMessage('Product already exists');
+        const duplicate = products.find(product =>
+            product.productName.replace(/\s*\([^)]+\)\s*$/, '').trim() === formData.productName &&
+            product.supplierCompanyName === formData.supplierCompanyName &&
+            (product.barcode == null || product.barcode === formData.barcode) &&
+            (!isEditMode || product.productId !== selectedProductId)
+        );
+        if (duplicate && !isEditMode) {
+            setSnackbarErrorMessage("Product with name '" + formData.productName + "' from supplier '" + formData.supplierCompanyName + "' already exists");
+            setSnackbarErrorOpen(true);
+            return;
+        }
+
+        try {
+            const productData = {
+                productName: formData.productName,
+                categoryName: formData.categoryName,
+                quantity: Number(formData.quantity) || 0,
+                buyingPrice: Number(formData.buyingPrice) || 0.0,
+                sellingPrice: Number(formData.sellingPrice) || 0.0,
+                supplierCompanyName: formData.supplierCompanyName,
+                barcode: useBarcode ? formData.barcode : '',
+                image: formData.image,
+            };
+
+            const response = await productServices.addProduct(productData);
+            setProducts([...products, response]);
+            setSnackbarMessage('Product added successfully');
+            setSnackbarOpen(true);
+            setFormData({
+                productName: '',
+                categoryName: '',
+                quantity: '',
+                buyingPrice: '',
+                sellingPrice: '',
+                supplierCompanyName: '',
+                image: defaultImage,
+                barcode: '',
+            });
+            setUseBarcode(true);
+            setIsManualBarcode(false);
+        } catch (error) {
+            console.error('Error adding product:', error);
+            setSnackbarErrorMessage('Failed to add product: ' + (error.response?.data?.message || error.message));
+            setSnackbarErrorOpen(true);
+        } finally {
+            handleCloseRegisterDialog();
+        }
+    };
+
+    const updateSectionRef = useRef(null);
+
+    const handleUpdateProduct = (productId) => {
+        const product = products.find((product) => product.productId === productId);
+        const rawProductName = product.productName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+        setFormData({
+            productName: rawProductName,
+            categoryName: product.categoryName,
+            quantity: 0,
+            buyingPrice: product.buyingPrice,
+            sellingPrice: product.sellingPrice,
+            supplierCompanyName: product.supplierCompanyName,
+            image: product.base64Image ? `data:image/jpeg;base64,${product.base64Image}` : defaultImage,
+            barcode: product.barcode || '',
+        });
+        setUseBarcode(!!product.barcode);
+        setSelectedProductId(productId);
+        setIsEditMode(true);
+        setIsManualBarcode(false);
+        updateSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    const handleOpenUpdateDialog = () => {
+        if (useBarcode && formData.barcode && isManualBarcode) {
+            const barcodePattern = /^\d{13}$/;
+            if (!barcodePattern.test(formData.barcode)) {
+                setSnackbarErrorMessage("Barcode must be exactly 13 digits with no letters or special characters");
+                setSnackbarErrorOpen(true);
+                return;
+            }
+
+            const barcodeExists = products.some(product =>
+                product.barcode === formData.barcode &&
+                product.productId !== selectedProductId
+            );
+            if (barcodeExists) {
+                setSnackbarErrorMessage("This barcode is already associated with another product");
+                setSnackbarErrorOpen(true);
+                return;
+            }
+        }
+        setUpdateDialogOpen(true);
+    };
+
+    const handleCloseUpdateDialog = () => {
+        setUpdateDialogOpen(false);
+        setSelectedProductId(null);
+        setIsEditMode(false);
+        setIsManualBarcode(false);
+    };
+
+    const handleConfirmUpdateProduct = async () => {
+        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
+            setSnackbarErrorMessage('Please fill in all required fields');
             setSnackbarErrorOpen(true);
             return;
         }
@@ -313,76 +573,18 @@ const Inventory = () => {
         }
 
         try {
-            const response = await productServices.addProduct(formData);
-            setProducts([...products, response]);
-            setSnackbarMessage('Product added successfully');
-            setSnackbarOpen(true);
-            setFormData({
-                productName: '',
-                categoryName: '',
-                quantity: '',
-                buyingPrice: '',
-                sellingPrice: '',
-                supplierCompanyName: '',
-                image: defaultImage,
-                barcode: '',
-            });
-        } catch (error) {
-            console.error('Error adding product:', error);
-            setSnackbarErrorMessage('Failed to add product: ' + (error.response?.data?.message || error.message));
-            setSnackbarErrorOpen(true);
-        } finally {
-            handleCloseRegisterDialog();
-        }
-    };
-
-    const updateSectionRef = useRef(null);
-
-    const handleUpdateProduct = (productId) => {
-        const product = products.find((product) => product.productId === productId);
-        setFormData({
-            productName: product.productName,
-            categoryName: product.categoryName,
-            quantity: 0, // Quantity will be handled via restocking
-            buyingPrice: product.buyingPrice,
-            sellingPrice: product.sellingPrice,
-            supplierCompanyName: product.supplierCompanyName,
-            image: product.base64Image || defaultImage,
-            barcode: product.barcode || '',
-        });
-        setSelectedProductId(productId);
-        setIsEditMode(true);
-        updateSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    const handleOpenUpdateDialog = () => {
-        setUpdateDialogOpen(true);
-    };
-
-    const handleCloseUpdateDialog = () => {
-        setUpdateDialogOpen(false);
-        setSelectedProductId(null);
-        setIsEditMode(false);
-    };
-
-    const handleConfirmUpdateProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
-            setSnackbarErrorMessage('Please fill in all required fields');
-            setSnackbarErrorOpen(true);
-            return;
-        }
-
-        try {
-            const response = await productServices.updateProduct(selectedProductId, {
+            const productData = {
                 productName: formData.productName,
                 categoryName: formData.categoryName,
-                quantity: parseInt(formData.quantity) || 0,
-                buyingPrice: parseFloat(formData.buyingPrice) || 0.0,
-                sellingPrice: parseFloat(formData.sellingPrice) || 0.0,
+                quantity: Number(formData.quantity) || 0,
+                buyingPrice: Number(formData.buyingPrice) || 0.0,
+                sellingPrice: Number(formData.sellingPrice) || 0.0,
                 supplierCompanyName: formData.supplierCompanyName,
-                barcode: formData.barcode,
-                image: formData.image
-            });
+                barcode: useBarcode ? formData.barcode : null,
+                image: formData.image,
+            };
+
+            const response = await productServices.updateProduct(selectedProductId, productData);
             const updatedProducts = products.map((product) =>
                 product.productId === selectedProductId ? response : product
             );
@@ -399,6 +601,8 @@ const Inventory = () => {
                 image: defaultImage,
                 barcode: '',
             });
+            setUseBarcode(true);
+            setIsManualBarcode(false);
         } catch (error) {
             console.error('Error updating product:', error);
             setSnackbarErrorMessage('Failed to update product: ' + (error.response?.data?.message || error.message));
@@ -412,11 +616,12 @@ const Inventory = () => {
     const handleOpenCategoryDeleteDialog = (categoryId) => {
         setSelectedCategoryId(categoryId);
         setCategoryDeleteDialogOpen(true);
-    }
+    };
 
     const handleCloseCategoryDeleteDialog = () => {
         setCategoryDeleteDialogOpen(false);
-    }
+        setSelectedCategoryId(null);
+    };
 
     const handleDeleteCategory = async () => {
         try {
@@ -425,6 +630,7 @@ const Inventory = () => {
             setCategories(updatedCategories);
             setSnackbarMessage('Category deleted successfully');
             setSnackbarOpen(true);
+            fetchProducts(); // Refresh products to reflect updated category names
         } catch (error) {
             console.error('Error deleting category:', error);
             setSnackbarErrorMessage('Failed to delete category');
@@ -432,7 +638,57 @@ const Inventory = () => {
         } finally {
             handleCloseCategoryDeleteDialog();
         }
-    }
+    };
+
+    const handleOpenCategoryUpdateDialog = (category) => {
+        setSelectedCategoryId(category.categoryId);
+        setFormDataCategory({ newCategoryName: category.categoryName });
+        setCategoryUpdateDialogOpen(true);
+    };
+
+    const handleCloseCategoryUpdateDialog = () => {
+        setCategoryUpdateDialogOpen(false);
+        setSelectedCategoryId(null);
+        setFormDataCategory({ newCategoryName: '' });
+    };
+
+    const handleUpdateCategory = async () => {
+        if (!formDataCategory.newCategoryName.trim()) {
+            setSnackbarErrorMessage('Category name cannot be empty');
+            setSnackbarErrorOpen(true);
+            return;
+        }
+        const categoryExists = categories.some(category =>
+            category.categoryName === formDataCategory.newCategoryName &&
+            category.categoryId !== selectedCategoryId
+        );
+        if (categoryExists) {
+            setSnackbarErrorMessage('Category name already exists');
+            setSnackbarErrorOpen(true);
+            return;
+        }
+
+        try {
+            const updatedCategory = {
+                categoryName: formDataCategory.newCategoryName
+            };
+            await categoryService.updateCategory(selectedCategoryId, updatedCategory);
+            setCategories(categories.map(category =>
+                category.categoryId === selectedCategoryId
+                    ? { ...category, categoryName: formDataCategory.newCategoryName }
+                    : category
+            ));
+            setSnackbarMessage('Category updated successfully');
+            setSnackbarOpen(true);
+            fetchProducts(); // Refresh products to reflect updated category names
+        } catch (error) {
+            console.error('Error updating category:', error);
+            setSnackbarErrorMessage('Failed to update category');
+            setSnackbarErrorOpen(true);
+        } finally {
+            handleCloseCategoryUpdateDialog();
+        }
+    };
 
     const handleOpenCategoryRegisterDialog = () => {
         setCategoryRegisterDialogOpen(true);
@@ -475,8 +731,6 @@ const Inventory = () => {
         }
     };
 
-
-
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Box>
@@ -508,10 +762,18 @@ const Inventory = () => {
                         <Button
                             variant="contained"
                             onClick={() => handleOpenRestockDialog(null)}
-                            sx={{ bgcolor: "#00ffff", textTransform: "none", color: "black" }}
+                            sx={{ bgcolor: "#00ffff", textTransform: "none", color: "black", mr: 2 }}
                             startIcon={<AddCircleIcon/>}
                         >
                             Add Stock
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={() => handleOpenUpdateBatchDialog(null)}
+                            sx={{ bgcolor: "#ff9800", textTransform: "none", color: "black" }}
+                            startIcon={<UpdateIcon/>}
+                        >
+                            Update Batch
                         </Button>
                     </Grid>
                 </Grid>
@@ -574,8 +836,121 @@ const Inventory = () => {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseRestockDialog}>Cancel</Button>
-                        <Button onClick={handleRestock} variant="contained">
+                        <Button onClick={handleOpenRestockConfirmDialog} variant="contained">
                             Add Stock
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={restockConfirmDialogOpen}
+                    onClose={handleCloseRestockConfirmDialog}
+                >
+                    <DialogTitle>Confirm Restock</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Are you sure you want to restock this product?
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseRestockConfirmDialog}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleRestock}>
+                            Confirm
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={updateBatchDialogOpen}
+                    onClose={handleCloseUpdateBatchDialog}
+                    maxWidth="md"
+                    sx={{ '& .MuiDialog-paper': { minHeight: '400px', minWidth: '600px' } }}
+                >
+                    <DialogTitle>Update Batch</DialogTitle>
+                    <DialogContent>
+                        <Autocomplete
+                            options={products}
+                            getOptionLabel={(option) => option.productName}
+                            onChange={(event, newValue) => handleOpenUpdateBatchDialog(newValue)}
+                            value={selectedProduct}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }}/>
+                            )}
+                        />
+                        <Autocomplete
+                            options={batches.map(batch => ({
+                                batchId: batch.batchId,
+                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`
+                            }))}
+                            getOptionLabel={(option) => option.label}
+                            onChange={(event, newValue) => {
+                                const batch = newValue?.batchId ? batches.find(b => b.batchId === newValue.batchId) : null;
+                                setSelectedBatch(batch);
+                                if (batch) {
+                                    setUpdatedQuantity(batch.quantity.toString());
+                                    setUpdatedBuyingPrice(batch.buyingPrice.toString());
+                                    setUpdatedSellingPrice(batch.sellingPrice.toString());
+                                } else {
+                                    setUpdatedQuantity("");
+                                    setUpdatedBuyingPrice("");
+                                    setUpdatedSellingPrice("");
+                                }
+                            }}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }}/>
+                            )}
+                        />
+                        <TextField
+                            fullWidth
+                            label="Updated Quantity"
+                            type="number"
+                            value={updatedQuantity}
+                            onChange={(e) => setUpdatedQuantity(e.target.value)}
+                            sx={{ marginTop: 2 }}
+                            disabled={!selectedBatch}
+                        />
+                        <TextField
+                            fullWidth
+                            label="Updated Buying Price"
+                            type="number"
+                            value={updatedBuyingPrice}
+                            onChange={(e) => setUpdatedBuyingPrice(e.target.value)}
+                            sx={{ marginTop: 2 }}
+                            disabled={!selectedBatch}
+                        />
+                        <TextField
+                            fullWidth
+                            label="Updated Selling Price"
+                            type="number"
+                            value={updatedSellingPrice}
+                            onChange={(e) => setUpdatedSellingPrice(e.target.value)}
+                            sx={{ marginTop: 2 }}
+                            disabled={!selectedBatch}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseUpdateBatchDialog}>Cancel</Button>
+                        <Button onClick={handleOpenUpdateBatchConfirmDialog} variant="contained" disabled={!selectedBatch}>
+                            Update Batch
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={updateBatchConfirmDialogOpen}
+                    onClose={handleCloseUpdateBatchConfirmDialog}
+                >
+                    <DialogTitle>Confirm Update Batch</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Are you sure you want to update this batch?
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseUpdateBatchConfirmDialog}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleUpdateBatch}>
+                            Confirm
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -591,7 +966,7 @@ const Inventory = () => {
                                 <TableCell>Buying Price</TableCell>
                                 <TableCell>Selling Price</TableCell>
                                 <TableCell>Supplier</TableCell>
-                                <TableCell>BarCode</TableCell>
+                                <TableCell>Barcode</TableCell>
                                 <TableCell>Actions</TableCell>
                             </TableRow>
                         </TableHead>
@@ -625,7 +1000,7 @@ const Inventory = () => {
                                     <TableCell>{product.buyingPrice}</TableCell>
                                     <TableCell>{product.sellingPrice}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
-                                    <TableCell>{product.barcode}</TableCell>
+                                    <TableCell>{product.barcode || '#N/A'}</TableCell>
                                     <TableCell>
                                         <Button
                                             variant="contained"
@@ -664,12 +1039,27 @@ const Inventory = () => {
                                                 bgcolor: '#28a745',
                                                 minWidth: '40px',
                                                 padding: '4px',
+                                                marginRight: '4px',
                                                 '&:hover': { bgcolor: '#1e7e34' }
                                             }}
                                             onClick={() => handleOpenRestockDialog(product)}
                                             title="Restock Product"
                                         >
                                             <AddCircleIcon fontSize="small" />
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            sx={{
+                                                bgcolor: '#ff9800',
+                                                minWidth: '40px',
+                                                padding: '4px',
+                                                '&:hover': { bgcolor: '#f57c00' }
+                                            }}
+                                            onClick={() => handleOpenUpdateBatchDialog(product)}
+                                            title="Update Batch"
+                                        >
+                                            <UpdateIcon fontSize="small" />
                                         </Button>
                                     </TableCell>
                                 </TableRow>
@@ -707,7 +1097,15 @@ const Inventory = () => {
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Product Name" name="productName" value={formData.productName} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="Product Name"
+                                        name="productName"
+                                        value={formData.productName}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Autocomplete
@@ -729,13 +1127,40 @@ const Inventory = () => {
                                 {!isEditMode && (
                                     <>
                                         <Grid item xs={12}>
-                                            <TextField fullWidth label="Initial Quantity" name="quantity" value={formData.quantity} onChange={handleChange} variant="outlined" required />
+                                            <TextField
+                                                fullWidth
+                                                label="Initial Quantity"
+                                                name="quantity"
+                                                type="number"
+                                                value={formData.quantity}
+                                                onChange={handleChange}
+                                                variant="outlined"
+                                                required
+                                            />
                                         </Grid>
                                         <Grid item xs={12}>
-                                            <TextField fullWidth label="Buying Price" name="buyingPrice" value={formData.buyingPrice} onChange={handleChange} variant="outlined" required />
+                                            <TextField
+                                                fullWidth
+                                                label="Buying Price"
+                                                name="buyingPrice"
+                                                type="number"
+                                                value={formData.buyingPrice}
+                                                onChange={handleChange}
+                                                variant="outlined"
+                                                required
+                                            />
                                         </Grid>
                                         <Grid item xs={12}>
-                                            <TextField fullWidth label="Selling Price" name="sellingPrice" value={formData.sellingPrice} onChange={handleChange} variant="outlined" required />
+                                            <TextField
+                                                fullWidth
+                                                label="Selling Price"
+                                                name="sellingPrice"
+                                                type="number"
+                                                value={formData.sellingPrice}
+                                                onChange={handleChange}
+                                                variant="outlined"
+                                                required
+                                            />
                                         </Grid>
                                     </>
                                 )}
@@ -757,6 +1182,22 @@ const Inventory = () => {
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                checked={useBarcode}
+                                                onChange={(e) => {
+                                                    setUseBarcode(e.target.checked);
+                                                    if (!e.target.checked) {
+                                                        setFormData(prev => ({ ...prev, barcode: '' }));
+                                                        setIsManualBarcode(false);
+                                                    }
+                                                }}
+                                                color="primary"
+                                            />
+                                        }
+                                        label="Use Barcode(untick if barcode is not available)"
+                                    />
                                     <Grid container spacing={2} alignItems="center">
                                         <Grid item xs={9}>
                                             <TextField
@@ -766,7 +1207,7 @@ const Inventory = () => {
                                                 value={formData.barcode}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                required
+                                                disabled={!useBarcode}
                                             />
                                         </Grid>
                                         <Grid item xs={3}>
@@ -774,6 +1215,7 @@ const Inventory = () => {
                                                 variant="contained"
                                                 onClick={handleOpenScannerDialog}
                                                 sx={{ bgcolor: "#007bff", textTransform: "none" }}
+                                                disabled={!useBarcode}
                                             >
                                                 Scan
                                             </Button>
@@ -862,7 +1304,22 @@ const Inventory = () => {
                                     <TableCell>{category.categoryId}</TableCell>
                                     <TableCell>{category.categoryName}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenCategoryDeleteDialog(category.categoryId)} startIcon={<DeleteIcon/>}>Delete</Button>
+                                        <Button
+                                            variant="contained"
+                                            sx={{ bgcolor: '#007bff', mr: 1 }}
+                                            onClick={() => handleOpenCategoryUpdateDialog(category)}
+                                            startIcon={<EditIcon />}
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            sx={{ bgcolor: '#dc3545' }}
+                                            onClick={() => handleOpenCategoryDeleteDialog(category.categoryId)}
+                                            startIcon={<DeleteIcon />}
+                                        >
+                                            Delete
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -883,7 +1340,15 @@ const Inventory = () => {
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="New Category Name" name="newCategoryName" value={formDataCategory.newCategoryName} onChange={handleChangeCategory} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="New Category Name"
+                                        name="newCategoryName"
+                                        value={formDataCategory.newCategoryName}
+                                        onChange={handleChangeCategory}
+                                        variant="outlined"
+                                        required
+                                    />
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -982,6 +1447,30 @@ const Inventory = () => {
                     </Button>
                     <Button onClick={handleDeleteCategory}>
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={categoryUpdateDialogOpen} onClose={handleCloseCategoryUpdateDialog}>
+                <DialogTitle>Update Category</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        label="Category Name"
+                        name="newCategoryName"
+                        value={formDataCategory.newCategoryName}
+                        onChange={handleChangeCategory}
+                        variant="outlined"
+                        required
+                        sx={{ marginTop: 2 }}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseCategoryUpdateDialog}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleUpdateCategory}>
+                        Update
                     </Button>
                 </DialogActions>
             </Dialog>

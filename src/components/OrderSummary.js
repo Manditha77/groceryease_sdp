@@ -48,7 +48,7 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
     const total = subtotal;
 
     // Set estimated pickup to today (May 08, 2025)
-    const formattedDate = 'May 08, 2025';
+    const formattedDate = 'May 16, 2025';
 
     return (
         <Paper

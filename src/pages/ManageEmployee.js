@@ -17,7 +17,11 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Grid, TextField, Avatar, Snackbar, Alert
+    Grid,
+    TextField,
+    Avatar,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import PersonIcon from "@mui/icons-material/Person";
 
@@ -32,6 +36,17 @@ const ManageEmployee = () => {
         password: '',
         confirmPassword: '',
     });
+    const [errors, setErrors] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNo: '',
+        address: '',
+        username: '',
+        password: '',
+        confirmPassword: '',
+        general: ''
+    });
     const navigate = useNavigate();
     const [employees, setEmployees] = useState([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -40,31 +55,158 @@ const ManageEmployee = () => {
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    }
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value.trimStart() }); // Prevent leading spaces
+        setErrors({ ...errors, [name]: '', general: '' });
+    };
+
+    const fetchEmployees = async () => {
+        try {
+            const data = await authService.getEmployees();
+            setEmployees(data);
+        } catch (error) {
+            console.error('Error fetching employees:', error);
+            setSnackbarMessage('Failed to fetch employees. Please try again.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
 
     useEffect(() => {
-        const fetchEmployees = async () => {
-            try {
-                const data = await authService.getEmployees();
-                setEmployees(data);
-            } catch (error) {
-                console.error('Error fetching employees:', error);
+        fetchEmployees();
+    }, []);
+
+    const validateForm = () => {
+        let newErrors = { ...errors, general: '' };
+        let isValid = true;
+
+        const trimmedFormData = {
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            email: formData.email.trim(),
+            phoneNo: formData.phoneNo.trim(),
+            address: formData.address.trim(),
+            username: formData.username.trim(),
+            password: formData.password.trim(),
+            confirmPassword: formData.confirmPassword.trim(),
+        };
+
+        setFormData(trimmedFormData);
+
+        if (!trimmedFormData.firstName) {
+            newErrors.firstName = 'First name is required';
+            isValid = false;
+        } else if (trimmedFormData.firstName.length > 50) {
+            newErrors.firstName = 'First name cannot exceed 50 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.lastName) {
+            newErrors.lastName = 'Last name is required';
+            isValid = false;
+        } else if (trimmedFormData.lastName.length > 50) {
+            newErrors.lastName = 'Last name cannot exceed 50 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.email) {
+            newErrors.email = 'Email is required';
+            isValid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedFormData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+            isValid = false;
+        } else if (trimmedFormData.email.length > 100) {
+            newErrors.email = 'Email cannot exceed 100 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.phoneNo) {
+            newErrors.phoneNo = 'Phone number is required';
+            isValid = false;
+        } else if (!/^\d{10}$/.test(trimmedFormData.phoneNo)) {
+            newErrors.phoneNo = 'Phone number must be exactly 10 digits';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.address) {
+            newErrors.address = 'Address is required';
+            isValid = false;
+        } else if (trimmedFormData.address.length > 255) {
+            newErrors.address = 'Address cannot exceed 255 characters';
+            isValid = false;
+        }
+
+        if (!selectedUserId) {
+            if (!trimmedFormData.username) {
+                newErrors.username = 'Username is required';
+                isValid = false;
+            } else if (trimmedFormData.username.length < 3 || trimmedFormData.username.length > 50) {
+                newErrors.username = 'Username must be between 3 and 50 characters';
+                isValid = false;
+            } else if (!/^[a-zA-Z0-9_]+$/.test(trimmedFormData.username)) {
+                newErrors.username = 'Username can only contain letters, numbers, and underscores';
+                isValid = false;
+            }
+
+            if (!trimmedFormData.password) {
+                newErrors.password = 'Password is required';
+                isValid = false;
+            } else if (trimmedFormData.password.length < 8) {
+                newErrors.password = 'Password must be at least 8 characters long';
+                isValid = false;
+            } else if (!/[A-Z]/.test(trimmedFormData.password) || !/[0-9]/.test(trimmedFormData.password)) {
+                newErrors.password = 'Password must contain at least one uppercase letter and one number';
+                isValid = false;
+            }
+
+            if (!trimmedFormData.confirmPassword) {
+                newErrors.confirmPassword = 'Confirm password is required';
+                isValid = false;
+            } else if (trimmedFormData.password !== trimmedFormData.confirmPassword) {
+                newErrors.confirmPassword = 'Passwords do not match';
+                isValid = false;
             }
         }
 
-        fetchEmployees();
-    }, [])
+        if (!selectedUserId) {
+            const emailExists = employees.some(emp => emp.email === trimmedFormData.email && emp.userId !== selectedUserId);
+            if (emailExists) {
+                newErrors.email = 'Email is already registered';
+                isValid = false;
+            }
+            const usernameExists = employees.some(emp => emp.username === trimmedFormData.username && emp.userId !== selectedUserId);
+            if (usernameExists) {
+                newErrors.username = 'Username is already taken';
+                isValid = false;
+            }
+        } else {
+            const emailExists = employees.some(emp => emp.email === trimmedFormData.email && emp.userId !== selectedUserId);
+            if (emailExists) {
+                newErrors.email = 'Email is already registered';
+                isValid = false;
+            }
+        }
+
+        setErrors(newErrors);
+        return isValid;
+    };
 
     const handleOpenUpdateDialog = () => {
-        setUpdateDialogOpen(true);
-    }
+        if (validateForm()) {
+            setUpdateDialogOpen(true);
+        } else {
+            setSnackbarMessage('Please fix the errors in the form before submitting.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
 
     const handleCloseUpdateDialog = () => {
         setUpdateDialogOpen(false);
-    }
+    };
 
     const handleUpdateEmployee = async (userId) => {
         const employee = employees.find((employee) => employee.userId === userId);
@@ -75,39 +217,46 @@ const ManageEmployee = () => {
             phoneNo: employee.phoneNo,
             address: employee.address,
             username: employee.username,
-            password: '', // Clear password fields for security
+            password: '',
             confirmPassword: '',
         });
         setSelectedUserId(userId);
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }
+    };
 
     const handleConfirmUpdateEmployee = async () => {
-        // if (formData.password !== formData.confirmPassword) {
-        //     alert("Passwords do not match!");
-        //     return;
-        // }
-
         try {
-            const updatedEmployee = await authService.updateUser(
+            const updatePayload = {
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phoneNo: formData.phoneNo,
+                address: formData.address,
+                role: 'EMPLOYEE',
+            };
+
+            const updatedEmployee = await authService.updateUserDetails(
                 selectedUserId,
-                formData.firstName,
-                formData.lastName,
-                formData.email,
-                formData.phoneNo,
-                formData.address,
-                'EMPLOYEE',
-                formData.username,
-                formData.password
+                updatePayload.firstName,
+                updatePayload.lastName,
+                updatePayload.email,
+                updatePayload.phoneNo,
+                updatePayload.address,
+                updatePayload.role
             );
+
             const updatedEmployees = employees.map((employee) =>
-                employee.userId === selectedUserId ? updatedEmployee : employee
+                employee.userId === selectedUserId ? { ...employee, ...updatedEmployee } : employee
             );
             setEmployees(updatedEmployees);
             setSnackbarMessage('Employee updated successfully');
+            setSnackbarSeverity('success');
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error updating employee:', error);
+            setSnackbarMessage(error.response?.data?.message || 'Failed to update employee. Please try again.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
         } finally {
             setFormData({
                 firstName: '',
@@ -120,25 +269,38 @@ const ManageEmployee = () => {
                 confirmPassword: '',
             });
             setSelectedUserId(null);
+            setErrors({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phoneNo: '',
+                address: '',
+                username: '',
+                password: '',
+                confirmPassword: '',
+                general: ''
+            });
             handleCloseUpdateDialog();
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            await fetchEmployees();
         }
     };
 
     const handleOpenRegisterDialog = () => {
-        setRegisterDialogOpen(true);
-    }
+        if (validateForm()) {
+            setRegisterDialogOpen(true);
+        } else {
+            setSnackbarMessage('Please fix the errors in the form before submitting.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
 
     const handleCloseRegisterDialog = () => {
         setRegisterDialogOpen(false);
-    }
+    };
 
     const handleConfirmRegisterEmployee = async () => {
-        if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
-            return;
-        }
-
         try {
             const newEmployee = await authService.register(
                 formData.firstName,
@@ -150,7 +312,7 @@ const ManageEmployee = () => {
                 formData.username,
                 formData.password
             );
-            setEmployees([...employees, newEmployee]); // Add the new employee to the state
+            setEmployees([...employees, newEmployee]);
             setFormData({
                 firstName: '',
                 lastName: '',
@@ -161,15 +323,30 @@ const ManageEmployee = () => {
                 password: '',
                 confirmPassword: '',
             });
+            setErrors({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phoneNo: '',
+                address: '',
+                username: '',
+                password: '',
+                confirmPassword: '',
+                general: ''
+            });
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setSnackbarMessage('Employee registered successfully');
+            setSnackbarSeverity('success');
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error adding employee:', error);
-        }  finally {
+            setSnackbarMessage(error.response?.data?.message || 'Failed to register employee. Please try again.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        } finally {
             handleCloseRegisterDialog();
         }
-    }
+    };
 
     const handleOpenDeleteDialog = (userId) => {
         setSelectedUserId(userId);
@@ -187,18 +364,22 @@ const ManageEmployee = () => {
             const updatedEmployees = employees.filter((employee) => employee.userId !== selectedUserId);
             setEmployees(updatedEmployees);
             setSnackbarMessage('Employee deleted successfully');
+            setSnackbarSeverity('success');
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error deleting employee:', error);
+            setSnackbarMessage('Failed to delete employee. Please try again.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
         } finally {
             handleCloseDeleteDialog();
         }
     };
 
     return (
-        <Box sx={{ padding: 4, paddingTop: 7}}>
+        <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Box>
-                <Typography variant="h4" gutterBottom sx={{color: '#0478C0', fontWeight: 'bold'}}>
+                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                     Manage Employees
                 </Typography>
                 <TableContainer component={Paper}>
@@ -224,8 +405,21 @@ const ManageEmployee = () => {
                                     <TableCell>{employee.username}</TableCell>
                                     <TableCell>{employee.email}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateEmployee(employee.userId)}>Edit</Button>
-                                        <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(employee.userId)}>Delete</Button>
+                                        <Button
+                                            variant="contained"
+                                            style={{ marginRight: 8 }}
+                                            sx={{ bgcolor: '#007bff' }}
+                                            onClick={() => handleUpdateEmployee(employee.userId)}
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            sx={{ bgcolor: '#dc3545' }}
+                                            onClick={() => handleOpenDeleteDialog(employee.userId)}
+                                        >
+                                            Delete
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -235,51 +429,153 @@ const ManageEmployee = () => {
             </Box>
 
             <Box sx={{ paddingTop: 5 }}>
-                <Typography variant="h4" align="center" gutterBottom style={{color: '#0478C0'}}>
+                <Typography
+                    variant="h4"
+                    align="center"
+                    gutterBottom
+                    style={{ color: '#0478C0' }}
+                >
                     {selectedUserId ? 'Update Employee' : 'Register Employee'}
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
                         <Grid item xs={12} md={6}>
-                            <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                            <Typography
+                                variant="h6"
+                                align="center"
+                                sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}
+                            >
                                 Employee Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="First Name"
+                                        name="firstName"
+                                        value={formData.firstName}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        error={!!errors.firstName}
+                                        helperText={errors.firstName}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="Last Name"
+                                        name="lastName"
+                                        value={formData.lastName}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        error={!!errors.lastName}
+                                        helperText={errors.lastName}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Email" name="email" value={formData.email} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="Email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        error={!!errors.email}
+                                        helperText={errors.email}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Phone Number" name="phoneNo" value={formData.phoneNo} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="Phone Number"
+                                        name="phoneNo"
+                                        value={formData.phoneNo}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        error={!!errors.phoneNo}
+                                        helperText={errors.phoneNo}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Address" name="address" value={formData.address} onChange={handleChange} variant="outlined" required />
+                                    <TextField
+                                        fullWidth
+                                        label="Address"
+                                        name="address"
+                                        value={formData.address}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        error={!!errors.address}
+                                        helperText={errors.address}
+                                    />
                                 </Grid>
                             </Grid>
                         </Grid>
 
-                        <Grid item xs={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
+                        <Grid
+                            item
+                            xs={6}
+                            sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                        >
+                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5 }} />
                         </Grid>
 
                         <Grid item xs={12} md={6} hidden={!!selectedUserId}>
-                            <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                            <Typography
+                                variant="h6"
+                                align="center"
+                                sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}
+                            >
                                 Login Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Username" name="username" value={formData.username} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
+                                    <TextField
+                                        fullWidth
+                                        label="Username"
+                                        name="username"
+                                        value={formData.username}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        disabled={!!selectedUserId}
+                                        error={!!errors.username}
+                                        helperText={errors.username}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Password" name="password" type="password" value={formData.password} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
+                                    <TextField
+                                        fullWidth
+                                        label="Password"
+                                        name="password"
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        disabled={!!selectedUserId}
+                                        error={!!errors.password}
+                                        helperText={errors.password}
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Confirm Password" name="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} variant="outlined" required disabled={!!selectedUserId}/>
+                                    <TextField
+                                        fullWidth
+                                        label="Confirm Password"
+                                        name="confirmPassword"
+                                        type="password"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                        variant="outlined"
+                                        required
+                                        disabled={!!selectedUserId}
+                                        error={!!errors.confirmPassword}
+                                        helperText={errors.confirmPassword}
+                                    />
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -287,7 +583,13 @@ const ManageEmployee = () => {
                         <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Button
                                 variant="contained"
-                                style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
+                                style={{
+                                    background: '#007bff',
+                                    textTransform: 'none',
+                                    width: '200px',
+                                    height: '50px',
+                                    fontSize: '19px'
+                                }}
                                 onClick={selectedUserId ? handleOpenUpdateDialog : handleOpenRegisterDialog}
                                 size="large"
                             >
@@ -349,8 +651,17 @@ const ManageEmployee = () => {
                 </DialogActions>
             </Dialog>
 
-            <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-                <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: '100%', height: '100%' }}>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={3000}
+                onClose={() => setSnackbarOpen(false)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert
+                    onClose={() => setSnackbarOpen(false)}
+                    severity={snackbarSeverity}
+                    sx={{ width: '100%', height: '100%' }}
+                >
                     {snackbarMessage}
                 </Alert>
             </Snackbar>

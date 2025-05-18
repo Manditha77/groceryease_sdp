@@ -16,7 +16,11 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Grid, TextField, Avatar, Snackbar, Alert
+    Grid,
+    TextField,
+    Avatar,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import PersonIcon from "@mui/icons-material/Person";
 
@@ -28,7 +32,14 @@ const SupplierManagement = () => {
         phoneNo: '',
         companyName: '',
     });
-
+    const [errors, setErrors] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNo: '',
+        companyName: '',
+        general: ''
+    });
     const [suppliers, setSuppliers] = useState([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
@@ -36,10 +47,14 @@ const SupplierManagement = () => {
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarErrorOpen, setSnackbarErrorOpen] = useState(false);
+    const [snackbarErrorMessage, setSnackbarErrorMessage] = useState('');
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    }
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value.trimStart() }); // Prevent leading spaces
+        setErrors({ ...errors, [name]: '', general: '' });
+    };
 
     useEffect(() => {
         const fetchSuppliers = async () => {
@@ -47,27 +62,97 @@ const SupplierManagement = () => {
                 const data = await authService.getSuppliers();
                 setSuppliers(data);
             } catch (error) {
-                console.error('Error fetching employees:', error);
+                console.error('Error fetching suppliers:', error);
             }
         };
 
         fetchSuppliers();
     }, []);
 
+    const validateForm = () => {
+        let newErrors = { ...errors, general: '' };
+        let isValid = true;
+
+        const trimmedFormData = {
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            email: formData.email.trim(),
+            phoneNo: formData.phoneNo.trim(),
+            companyName: formData.companyName.trim(),
+        };
+
+        setFormData(trimmedFormData);
+
+        if (!trimmedFormData.firstName) {
+            newErrors.firstName = 'First name is required';
+            isValid = false;
+        } else if (trimmedFormData.firstName.length > 50) {
+            newErrors.firstName = 'First name cannot exceed 50 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.lastName) {
+            newErrors.lastName = 'Last name is required';
+            isValid = false;
+        } else if (trimmedFormData.lastName.length > 50) {
+            newErrors.lastName = 'Last name cannot exceed 50 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.email) {
+            newErrors.email = 'Email is required';
+            isValid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedFormData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+            isValid = false;
+        } else if (trimmedFormData.email.length > 100) {
+            newErrors.email = 'Email cannot exceed 100 characters';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.phoneNo) {
+            newErrors.phoneNo = 'Phone number is required';
+            isValid = false;
+        } else if (!/^\d{10}$/.test(trimmedFormData.phoneNo)) {
+            newErrors.phoneNo = 'Phone number must be exactly 10 digits';
+            isValid = false;
+        }
+
+        if (!trimmedFormData.companyName) {
+            newErrors.companyName = 'Company name is required';
+            isValid = false;
+        } else if (trimmedFormData.companyName.length > 100) {
+            newErrors.companyName = 'Company name cannot exceed 100 characters';
+            isValid = false;
+        }
+
+        // Check for duplicate email during registration
+        if (!selectedUserId) {
+            const emailExists = suppliers.some(sup => sup.email === trimmedFormData.email && sup.userId !== selectedUserId);
+            if (emailExists) {
+                newErrors.email = 'Email is already registered';
+                isValid = false;
+            }
+        }
+
+        setErrors(newErrors);
+        return isValid;
+    };
+
     const handleOpenRegisterDialog = () => {
-        setRegisterDialogOpen(true);
-    }
+        if (validateForm()) {
+            setRegisterDialogOpen(true);
+        } else {
+            setSnackbarErrorMessage('Please fix the errors in the form before submitting.');
+            setSnackbarErrorOpen(true);
+        }
+    };
 
     const handleCloseRegisterDialog = () => {
         setRegisterDialogOpen(false);
-    }
+    };
 
     const handleConfirmRegisterSupplier = async () => {
-        if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
-            return;
-        }
-
         try {
             const newSupplier = await authService.registerSupplier(
                 formData.firstName,
@@ -77,7 +162,7 @@ const SupplierManagement = () => {
                 formData.companyName,
                 'SUPPLIER',
             );
-            setSuppliers([...suppliers, newSupplier]); // Add the new employee to the state
+            setSuppliers([...suppliers, newSupplier]);
             setFormData({
                 firstName: '',
                 lastName: '',
@@ -90,18 +175,25 @@ const SupplierManagement = () => {
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error adding supplier:', error);
+            setSnackbarErrorMessage('Failed to register supplier. Please try again.');
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseRegisterDialog();
         }
-    }
+    };
 
     const handleOpenUpdateDialog = () => {
-        setUpdateDialogOpen(true);
-    }
+        if (validateForm()) {
+            setUpdateDialogOpen(true);
+        } else {
+            setSnackbarErrorMessage('Please fix the errors in the form before submitting.');
+            setSnackbarErrorOpen(true);
+        }
+    };
 
     const handleCloseUpdateDialog = () => {
         setUpdateDialogOpen(false);
-    }
+    };
 
     const handleUpdateSupplier = async (userId) => {
         const supplier = suppliers.find((supplier) => supplier.userId === userId);
@@ -114,7 +206,7 @@ const SupplierManagement = () => {
         });
         setSelectedUserId(userId);
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }
+    };
 
     const handleConfirmUpdateSupplier = async () => {
         try {
@@ -135,6 +227,8 @@ const SupplierManagement = () => {
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error updating supplier:', error);
+            setSnackbarErrorMessage('Failed to update supplier. Please try again.');
+            setSnackbarErrorOpen(true);
         } finally {
             setFormData({
                 firstName: '',
@@ -168,14 +262,17 @@ const SupplierManagement = () => {
             setSnackbarOpen(true);
         } catch (error) {
             console.error('Error deleting supplier:', error);
+            setSnackbarErrorMessage('Failed to delete supplier. Please try again.');
+            setSnackbarErrorOpen(true);
         } finally {
             handleCloseDeleteDialog();
         }
     };
+
     return (
-        <Box sx={{ padding: 4, paddingTop: 7}}>
+        <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Box>
-                <Typography variant="h4" gutterBottom sx={{color: '#0478C0', fontWeight: 'bold'}}>
+                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                     Manage Suppliers
                 </Typography>
                 <TableContainer component={Paper}>
@@ -199,7 +296,7 @@ const SupplierManagement = () => {
                                     <TableCell>{supplier.phoneNo}</TableCell>
                                     <TableCell>{supplier.email}</TableCell>
                                     <TableCell>
-                                        <Button variant="contained" style={{ marginRight: 8}} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateSupplier(supplier.userId)}>Edit</Button>
+                                        <Button variant="contained" style={{ marginRight: 8 }} sx={{ bgcolor: '#007bff' }} onClick={() => handleUpdateSupplier(supplier.userId)}>Edit</Button>
                                         <Button variant="contained" sx={{ bgcolor: '#dc3545' }} onClick={() => handleOpenDeleteDialog(supplier.userId)}>Delete</Button>
                                     </TableCell>
                                 </TableRow>
@@ -210,43 +307,38 @@ const SupplierManagement = () => {
             </Box>
 
             <Box sx={{ paddingTop: 5 }}>
-                <Typography variant="h4" align="center" gutterBottom style={{color: '#0478C0'}}>
+                <Typography variant="h4" align="center" gutterBottom style={{ color: '#0478C0' }}>
                     {selectedUserId ? 'Update Supplier' : 'Register Supplier'}
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
-
-                        {/* Left Section: Customer Details */}
                         <Grid item xs={12} md={6}>
-                            <Typography variant="h6" align={"center"} sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
                                 Supplier Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} variant="outlined" required error={!!errors.firstName} helperText={errors.firstName} />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} variant="outlined" required error={!!errors.lastName} helperText={errors.lastName} />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Email" name="email" value={formData.email} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Email" name="email" value={formData.email} onChange={handleChange} variant="outlined" required error={!!errors.email} helperText={errors.email} />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Phone Number" name="phoneNo" value={formData.phoneNo} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Phone Number" name="phoneNo" value={formData.phoneNo} onChange={handleChange} variant="outlined" required error={!!errors.phoneNo} helperText={errors.phoneNo} />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField fullWidth label="Company Name" name="companyName" value={formData.companyName} onChange={handleChange} variant="outlined" required />
+                                    <TextField fullWidth label="Company Name" name="companyName" value={formData.companyName} onChange={handleChange} variant="outlined" required error={!!errors.companyName} helperText={errors.companyName} />
                                 </Grid>
                             </Grid>
                         </Grid>
 
-
-                        {/* Avatar - Centered */}
                         <Grid item xs={6} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5}} />
+                            <Avatar sx={{ width: 250, height: 250, bgcolor: 'lightgray', borderRadius: 5 }} />
                         </Grid>
 
-                        {/* Register Button */}
                         <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Button
                                 variant="contained"
@@ -319,6 +411,6 @@ const SupplierManagement = () => {
             </Snackbar>
         </Box>
     );
-}
+};
 
 export default SupplierManagement;

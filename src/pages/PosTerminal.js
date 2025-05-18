@@ -2,17 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Box, Typography, Button, TextField, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Paper, Snackbar, Alert, MenuItem, Select, FormControl, InputLabel,
-    Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions
+    Grid, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete
 } from '@mui/material';
 import { Html5QrcodeScanner } from "html5-qrcode";
 import productService from '../services/productServices';
 import orderServices from '../services/orderServices';
 import authService from '../services/authService';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const PosTerminal = () => {
     const [cart, setCart] = useState([]);
     const [products, setProducts] = useState([]);
-    const [barcode, setBarcode] = useState('');
+    const [searchInput, setSearchInput] = useState('');
     const [totalAmount, setTotalAmount] = useState(0);
     const [customerName, setCustomerName] = useState('POS Customer');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -23,6 +25,8 @@ const PosTerminal = () => {
         email: '',
         address: '',
     });
+    const [existingCustomers, setExistingCustomers] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -32,30 +36,45 @@ const PosTerminal = () => {
     const [lastAddedItem, setLastAddedItem] = useState(null);
     const [selectedItem, setSelectedItem] = useState(null);
     const [isPrinting, setIsPrinting] = useState(false);
-    const [receipt, setReceipt] = useState(null); // New state for receipt
-    const [openReceiptDialog, setOpenReceiptDialog] = useState(false); // New state for receipt dialog
+    const [receipt, setReceipt] = useState(null);
+    const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
     const scannerRef = useRef(null);
 
     const loggedInUser = authService.getLoggedInUser();
     const staffName = loggedInUser?.username || 'Unknown';
 
-    const fetchProducts = async () => {
+    const fetchData = async () => {
         try {
-            const response = await productService.getAllProducts();
-            if (response && response.data) {
-                setProducts(response.data);
-            } else {
-                throw new Error('No data returned from getAllProducts');
+            const [productResponse, customerResponse] = await Promise.all([
+                productService.getAllProducts(),
+                authService.getAllCustomers().then(customers =>
+                    customers.filter(c => c.customerType === 'CREDIT')
+                ),
+            ]);
+            // Ensure products are valid objects, allow NULL/undefined barcodes
+            if (productResponse && productResponse.data) {
+                const validProducts = productResponse.data.filter(p =>
+                    p &&
+                    typeof p === 'object' &&
+                    p.productId &&
+                    p.productName &&
+                    typeof p.productName === 'string' &&
+                    typeof p.quantity === 'number' &&
+                    typeof p.sellingPrice === 'number'
+                );
+                setProducts(validProducts);
+                console.log('Fetched products:', validProducts); // Debug log
             }
+            if (customerResponse) setExistingCustomers(customerResponse);
         } catch (error) {
-            console.error('Error fetching products:', error);
-            setErrorMessage('Failed to load products.');
+            console.error('Error fetching data:', error);
+            setErrorMessage('Failed to load products or customers.');
             setOpenSnackbar(true);
         }
     };
 
     useEffect(() => {
-        fetchProducts();
+        fetchData();
     }, []);
 
     useEffect(() => {
@@ -90,7 +109,7 @@ const PosTerminal = () => {
                     }
                 }
                 localStorage.setItem('offlineSales', '[]');
-                fetchProducts();
+                fetchData();
             }
         };
 
@@ -224,34 +243,41 @@ const PosTerminal = () => {
             if (isInputFocused && e.key === 'Enter') {
                 setErrorMessage('');
                 setSuccessMessage('');
-                console.log('Enter pressed, clearing messages. Barcode:', barcode);
+                console.log('Enter pressed, clearing messages. SearchInput:', searchInput);
             }
 
             if (e.key === 'Enter' && isInputFocused) {
-                const input = barcode.trim();
+                const input = searchInput.trim().toLowerCase();
                 console.log('Processing Enter with input:', input);
+                console.log('Current products:', products);
                 if (!input) {
-                    setErrorMessage('Please enter a product ID or barcode.');
+                    setErrorMessage('Please enter a product name, ID, or barcode.');
                     setOpenSnackbar(true);
                     console.log('Empty input detected, error set.');
                     return;
                 }
 
-                const productIdNum = Number(input);
-                const product = products.find(p =>
-                    p.barcode === input || (productIdNum && p.productId === productIdNum)
-                );
+                const matchingProduct = products.find(p => {
+                    if (!p) return false;
+                    const productNameLower = p.productName ? p.productName.toLowerCase() : '';
+                    const barcodeLower = p.barcode ? p.barcode.toLowerCase() : '';
+                    const productIdStr = p.productId != null ? p.productId.toString() : '';
+                    return (
+                        productNameLower.includes(input) ||
+                        (barcodeLower && barcodeLower.includes(input)) ||
+                        productIdStr === input
+                    );
+                });
 
-                if (product) {
-                    console.log('Product found:', product);
-                    addOrUpdateCartItem(product.productId);
+                if (matchingProduct) {
+                    console.log('Product found:', matchingProduct);
+                    addOrUpdateCartItem(matchingProduct.productId);
+                    setSearchInput('');
                 } else {
-                    setErrorMessage(`Product not found for ID or barcode: ${input}`);
+                    setErrorMessage(`No product found for "${searchInput}". Please check the name, ID, or barcode.`);
                     setOpenSnackbar(true);
                     console.log('Product not found, error set.');
                 }
-                setBarcode('');
-                console.log('Barcode cleared.');
                 return;
             }
 
@@ -336,7 +362,7 @@ const PosTerminal = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [cart, selectedItem, products, totalAmount, openPaymentDialog, scannerDialogOpen, openReceiptDialog, barcode]);
+    }, [cart, selectedItem, products, totalAmount, openPaymentDialog, scannerDialogOpen, openReceiptDialog, searchInput]);
 
     const addOrUpdateCartItem = (productId) => {
         const product = products.find(p => p.productId === productId);
@@ -407,22 +433,22 @@ const PosTerminal = () => {
         const newErrors = {};
         let isValid = true;
 
-        if (!creditCustomerDetails.firstName.trim()) {
+        if (!selectedCustomer && !creditCustomerDetails.firstName.trim()) {
             newErrors.firstName = 'First name is required';
             isValid = false;
         }
-        if (!creditCustomerDetails.lastName.trim()) {
+        if (!selectedCustomer && !creditCustomerDetails.lastName.trim()) {
             newErrors.lastName = 'Last name is required';
             isValid = false;
         }
-        if (!creditCustomerDetails.phone.trim()) {
+        if (!selectedCustomer && !creditCustomerDetails.phone.trim()) {
             newErrors.phone = 'Phone number is required';
             isValid = false;
-        } else if (!/^\d{10}$/.test(creditCustomerDetails.phone.replace(/\D/g, ''))) {
+        } else if (!selectedCustomer && !/^\d{10}$/.test(creditCustomerDetails.phone.replace(/\D/g, ''))) {
             newErrors.phone = 'Please enter a valid 10-digit phone number';
             isValid = false;
         }
-        if (!creditCustomerDetails.address.trim()) {
+        if (!selectedCustomer && !creditCustomerDetails.address.trim()) {
             newErrors.address = 'Address is required';
             isValid = false;
         }
@@ -434,6 +460,21 @@ const PosTerminal = () => {
     const handleCreditCustomerInputChange = (e) => {
         const { name, value } = e.target;
         setCreditCustomerDetails({ ...creditCustomerDetails, [name]: value });
+        setSelectedCustomer(null);
+    };
+
+    const handleSelectCustomer = (phoneNo) => {
+        const customer = existingCustomers.find(c => c.phoneNo === phoneNo);
+        if (customer) {
+            setSelectedCustomer(customer.phoneNo);
+            setCreditCustomerDetails({
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+                phone: customer.phoneNo,
+                email: customer.email || '',
+                address: customer.address || '',
+            });
+        }
     };
 
     const confirmPayment = async () => {
@@ -445,18 +486,31 @@ const PosTerminal = () => {
         }
 
         let finalCustomerName = customerName || 'POS Customer';
+        let creditDetails = null;
 
         if (paymentMethod === 'Credit Purpose') {
             const isValid = validateCreditCustomerDetails();
-            if (!isValid) {
-                return;
+            if (!isValid) return;
+
+            if (selectedCustomer) {
+                const customer = existingCustomers.find(c => c.phoneNo === selectedCustomer);
+                finalCustomerName = `${customer.firstName} ${customer.lastName}`;
+                creditDetails = {
+                    firstName: customer.firstName,
+                    lastName: customer.lastName,
+                    phone: customer.phoneNo,
+                    email: customer.email,
+                    address: customer.address,
+                };
+            } else {
+                finalCustomerName = `${creditCustomerDetails.firstName} ${creditCustomerDetails.lastName}`;
+                creditDetails = { ...creditCustomerDetails };
             }
-            finalCustomerName = `${creditCustomerDetails.firstName} ${creditCustomerDetails.lastName}`;
         }
 
         try {
             const currentDate = new Date();
-            const transactionDate = currentDate.toLocaleString();
+            const transactionDate = currentDate.toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
             console.log('Transaction Date set:', transactionDate);
 
             const order = {
@@ -470,13 +524,7 @@ const PosTerminal = () => {
                     quantity: item.quantity,
                     sellingPrice: item.sellingPrice,
                 })),
-                creditCustomerDetails: paymentMethod === 'Credit Purpose' ? {
-                    firstName: creditCustomerDetails.firstName,
-                    lastName: creditCustomerDetails.lastName,
-                    phone: creditCustomerDetails.phone,
-                    email: creditCustomerDetails.email,
-                    address: creditCustomerDetails.address,
-                } : null,
+                creditCustomerDetails: paymentMethod === 'Credit Purpose' ? creditDetails : null,
             };
 
             let tempOrderId = null;
@@ -499,8 +547,8 @@ const PosTerminal = () => {
                     throw new Error('Invalid response from createPosOrder');
                 }
                 newOrder = response.data.order;
-                setReceipt(newOrder.receipt); // Set the receipt from the response
-                setOpenReceiptDialog(true); // Open receipt dialog
+                setReceipt(newOrder.receipt);
+                setOpenReceiptDialog(true);
                 setSuccessMessage('Sale completed successfully!');
                 setOpenSnackbar(true);
             }
@@ -515,8 +563,9 @@ const PosTerminal = () => {
                 email: '',
                 address: '',
             });
+            setSelectedCustomer(null);
             setOpenPaymentDialog(false);
-            fetchProducts();
+            fetchData();
         } catch (error) {
             console.error('Error processing sale:', error);
             setErrorMessage(error.message || 'Failed to process sale. Please try again.');
@@ -530,28 +579,162 @@ const PosTerminal = () => {
         const printWindow = window.open('', '_blank');
         printWindow.document.write(`
             <html>
-            <head><title>POS Receipt</title></head>
+            <head>
+                <title>POS Receipt</title>
+                <style>
+                    body {
+                        font-family: 'Courier New', Courier, monospace;
+                        font-size: 12px;
+                        width: 300px;
+                        margin: 10px auto;
+                        text-align: center;
+                        color: #333;
+                    }
+                    .receipt-container {
+                        border: 1px solid #000;
+                        padding: 10px;
+                        border-radius: 5px;
+                    }
+                    .header {
+                        font-size: 16px;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
+                    .address {
+                        font-size: 10px;
+                        margin-bottom: 10px;
+                    }
+                    .divider {
+                        border-top: 1px dashed #000;
+                        margin: 5px 0;
+                    }
+                    .details {
+                        display: flex;
+                        justify-content: space-between;
+                        font-size: 4px; /* Further reduced font size */
+                        margin: 5px 0;
+                        text-align: left;
+                    }
+                    .details-left, .details-right {
+                        flex: 1;
+                    }
+                    .details-right {
+                        text-align: right;
+                    }
+                    .footer {
+                        font-size: 10px;
+                        margin: 5px 0;
+                    }
+                    .items-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 10px 0;
+                    }
+                    .items-table th, .items-table td {
+                        padding: 2px;
+                        text-align: left;
+                        font-size: 10px;
+                    }
+                    .items-table th {
+                        border-bottom: 1px solid #000;
+                    }
+                    .total {
+                        font-size: 12px;
+                        font-weight: bold;
+                        margin-top: 10px;
+                    }
+                </style>
+            </head>
             <body>
-                <pre style="font-family: Arial, sans-serif; font-size: 14px; text-align: center;">
-${receipt.receiptHeader}
-Order ID: ${receipt.orderId}
-Date: ${new Date(receipt.orderDate).toLocaleString()}
-Customer: ${receipt.customerName}
-Payment Method: ${receipt.paymentMethod}
-Staff: ${staffName}
-
-Items:
-${receipt.items.map(item => `${item.productName} x${item.quantity} @ Rs.${item.sellingPrice.toFixed(2)} = Rs.${item.subtotal.toFixed(2)}`).join('\n')}
-
-Total: Rs.${receipt.totalAmount.toFixed(2)}
-${receipt.receiptFooter}
-                </pre>
-                <script>window.print(); window.close();</script>
+                <div class="receipt-container">
+                    <div class="header">
+                        GroceryEase
+                    </div>
+                    <div class="address">
+                        123 Main Street, Colombo, Sri Lanka<br/>
+                        Phone: +94 112 345 678
+                    </div>
+                    <div class="divider"></div>
+                    <div class="details">
+                        <div class="details-left">
+                            Order ID: ${receipt.orderId}<br/>
+                            Date: ${new Date(receipt.orderDate).toLocaleString('en-US', { timeZone: 'Asia/Colombo' })}<br/>
+                            Staff: ${staffName}
+                        </div>
+                        <div class="details-right">
+                            Customer: ${receipt.customerName}<br/>
+                            Payment Method: ${receipt.paymentMethod}
+                        </div>
+                    </div>
+                    <div class="divider"></div>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${receipt.items.map(item => `
+                                <tr>
+                                    <td>${item.productName}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>Rs.${item.sellingPrice.toFixed(2)}</td>
+                                    <td>Rs.${item.subtotal.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="divider"></div>
+                    <div class="total">
+                        Total: Rs.${receipt.totalAmount.toFixed(2)}
+                    </div>
+                    <div class="divider"></div>
+                    <div class="footer">
+                        Thank you for shopping with us!<br/>
+                        Visit again at GroceryEase
+                    </div>
+                </div>
+                <script>
+                    window.print();
+                    window.close();
+                </script>
             </body>
             </html>
         `);
         printWindow.document.close();
-        setOpenReceiptDialog(false); // Close dialog after printing
+        setOpenReceiptDialog(false);
+    };
+
+    const handleDownloadPDF = () => {
+        if (!receipt) return;
+
+        const receiptElement = document.querySelector('#receipt-content');
+        if (!receiptElement) {
+            setErrorMessage('Failed to generate PDF. Receipt content not found.');
+            setOpenSnackbar(true);
+            return;
+        }
+
+        html2canvas(receiptElement, { scale: 2 }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+            });
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`receipt_${receipt.orderId}.pdf`);
+        }).catch(error => {
+            console.error('Error generating PDF:', error);
+            setErrorMessage('Failed to generate PDF. Please try again.');
+            setOpenSnackbar(true);
+        });
     };
 
     const handleCloseReceiptDialog = () => {
@@ -572,14 +755,47 @@ ${receipt.receiptFooter}
                             Scan Products
                         </Typography>
                         <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-                            <TextField
-                                label="Scan Barcode or Enter Product ID"
-                                value={barcode}
-                                onChange={(e) => setBarcode(e.target.value)}
-                                fullWidth
-                                variant="outlined"
-                                size="small"
-                                helperText="Press Enter to add product, Space to scan, Insert to checkout, Up/Down to select, +/- to adjust"
+                            <Autocomplete
+                                freeSolo
+                                options={products}
+                                getOptionLabel={(option) =>
+                                    option && typeof option === 'object' && option.productName
+                                        ? `${option.productName} (ID: ${option.productId}, Barcode: ${option.barcode || 'No Barcode'})`
+                                        : ''
+                                }
+                                filterOptions={(options, { inputValue }) => {
+                                    if (!inputValue) return options;
+                                    const input = inputValue.toLowerCase().trim();
+                                    return options.filter(option =>
+                                        option &&
+                                        typeof option === 'object' &&
+                                        (
+                                            (option.productName && option.productName.toLowerCase().includes(input)) ||
+                                            (option.barcode && option.barcode.toLowerCase().includes(input)) ||
+                                            (option.productId && option.productId.toString() === input)
+                                        )
+                                    );
+                                }}
+                                value={null}
+                                onChange={(event, newValue) => {
+                                    if (newValue && typeof newValue === 'object') {
+                                        addOrUpdateCartItem(newValue.productId);
+                                        setSearchInput('');
+                                    }
+                                }}
+                                onInputChange={(event, newInputValue) => {
+                                    setSearchInput(newInputValue);
+                                }}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Enter Product Name, ID, or Barcode"
+                                        fullWidth
+                                        variant="outlined"
+                                        size="small"
+                                        helperText="Press Enter to add product, Space to scan, Insert to checkout, Up/Down to select, +/- to adjust"
+                                    />
+                                )}
                             />
                             <Button
                                 variant="contained"
@@ -741,6 +957,23 @@ ${receipt.receiptFooter}
                     </FormControl>
                     {paymentMethod === 'Credit Purpose' && (
                         <Grid container spacing={2}>
+                            <Grid item xs={12}>
+                                <FormControl fullWidth variant="outlined" size="small" sx={{ mb: 2 }}>
+                                    <InputLabel>Select Existing Customer</InputLabel>
+                                    <Select
+                                        value={selectedCustomer || ''}
+                                        onChange={(e) => handleSelectCustomer(e.target.value)}
+                                        label="Select Existing Customer"
+                                    >
+                                        <MenuItem value="">-- New Customer --</MenuItem>
+                                        {existingCustomers.map((customer) => (
+                                            <MenuItem key={customer.phoneNo} value={customer.phoneNo}>
+                                                {`${customer.firstName} ${customer.lastName} (${customer.phoneNo})`}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
                             <Grid item xs={12} sm={6}>
                                 <TextField
                                     label="First Name"
@@ -749,6 +982,7 @@ ${receipt.receiptFooter}
                                     onChange={handleCreditCustomerInputChange}
                                     fullWidth
                                     required
+                                    disabled={!!selectedCustomer}
                                     error={!!errors.firstName}
                                     helperText={errors.firstName}
                                     variant="outlined"
@@ -763,6 +997,7 @@ ${receipt.receiptFooter}
                                     onChange={handleCreditCustomerInputChange}
                                     fullWidth
                                     required
+                                    disabled={!!selectedCustomer}
                                     error={!!errors.lastName}
                                     helperText={errors.lastName}
                                     variant="outlined"
@@ -777,6 +1012,7 @@ ${receipt.receiptFooter}
                                     onChange={handleCreditCustomerInputChange}
                                     fullWidth
                                     required
+                                    disabled={!!selectedCustomer}
                                     error={!!errors.phone}
                                     helperText={errors.phone}
                                     variant="outlined"
@@ -791,6 +1027,7 @@ ${receipt.receiptFooter}
                                     value={creditCustomerDetails.email}
                                     onChange={handleCreditCustomerInputChange}
                                     fullWidth
+                                    disabled={!!selectedCustomer}
                                     error={!!errors.email}
                                     helperText={errors.email}
                                     variant="outlined"
@@ -805,6 +1042,7 @@ ${receipt.receiptFooter}
                                     onChange={handleCreditCustomerInputChange}
                                     fullWidth
                                     required
+                                    disabled={!!selectedCustomer}
                                     error={!!errors.address}
                                     helperText={errors.address}
                                     variant="outlined"
@@ -830,21 +1068,70 @@ ${receipt.receiptFooter}
                 <DialogTitle sx={{ backgroundColor: '#0478C0', color: '#fff' }}>Receipt</DialogTitle>
                 <DialogContent>
                     {receipt && (
-                        <Box sx={{ whiteSpace: 'pre-wrap', fontFamily: 'Arial, sans-serif', fontSize: '14px', textAlign: 'center' }}>
-                            {receipt.receiptHeader}
-                            <Typography>Order ID: {receipt.orderId}</Typography>
-                            <Typography>Date: {new Date(receipt.orderDate).toLocaleString()}</Typography>
-                            <Typography>Customer: {receipt.customerName}</Typography>
-                            <Typography>Payment Method: {receipt.paymentMethod}</Typography>
-                            <Typography>Staff: {staffName}</Typography>
-                            <Typography sx={{ mt: 2 }}>Items:</Typography>
-                            {receipt.items.map((item, index) => (
-                                <Typography key={index}>
-                                    {item.productName} x{item.quantity} @ Rs.{item.sellingPrice.toFixed(2)} = Rs.{item.subtotal.toFixed(2)}
-                                </Typography>
-                            ))}
-                            <Typography sx={{ mt: 2 }}>Total: Rs.{receipt.totalAmount.toFixed(2)}</Typography>
-                            <Typography>{receipt.receiptFooter}</Typography>
+                        <Box
+                            id="receipt-content"
+                            sx={{
+                                fontFamily: "'Courier New', Courier, monospace",
+                                fontSize: '12px',
+                                width: '100%',
+                                maxWidth: '300px',
+                                margin: '0 auto',
+                                textAlign: 'center',
+                                color: '#333',
+                                border: '1px solid #000',
+                                borderRadius: '5px',
+                                p: 2,
+                            }}
+                        >
+                            <Typography sx={{ fontSize: '16px', fontWeight: 'bold', mb: 1 }}>
+                                GroceryEase
+                            </Typography>
+                            <Typography sx={{ fontSize: '10px', mb: 2 }}>
+                                123 Main Street, Colombo, Sri Lanka<br/>
+                                Phone: +94 112 345 678
+                            </Typography>
+                            <Divider sx={{ borderStyle: 'dashed', borderColor: '#000', my: 1 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '4px', mb: 2, textAlign: 'left' }}>
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography>Order ID: {receipt.orderId}</Typography>
+                                    <Typography>Date: {new Date(receipt.orderDate).toLocaleString('en-US', { timeZone: 'Asia/Colombo' })}</Typography>
+                                    <Typography>Staff: {staffName}</Typography>
+                                </Box>
+                                <Box sx={{ flex: 1, textAlign: 'right' }}>
+                                    <Typography>Customer: {receipt.customerName}</Typography>
+                                    <Typography>Payment Method: {receipt.paymentMethod}</Typography>
+                                </Box>
+                            </Box>
+                            <Divider sx={{ borderStyle: 'dashed', borderColor: '#000', my: 1 }} />
+                            <Table sx={{ mb: 2 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Item</TableCell>
+                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Qty</TableCell>
+                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Price</TableCell>
+                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Subtotal</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {receipt.items.map((item, index) => (
+                                        <TableRow key={index}>
+                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>{item.productName}</TableCell>
+                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>{item.quantity}</TableCell>
+                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>Rs.{item.sellingPrice.toFixed(2)}</TableCell>
+                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>Rs.{item.subtotal.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            <Divider sx={{ borderStyle: 'dashed', borderColor: '#000', my: 1 }} />
+                            <Typography sx={{ fontSize: '12px', fontWeight: 'bold', mt: 2 }}>
+                                Total: Rs.{receipt.totalAmount.toFixed(2)}
+                            </Typography>
+                            <Divider sx={{ borderStyle: 'dashed', borderColor: '#000', my: 1 }} />
+                            <Box sx={{ fontSize: '10px', mt: 2 }}>
+                                <Typography>Thank you for shopping with us!</Typography>
+                                <Typography>Visit again at GroceryEase</Typography>
+                            </Box>
                         </Box>
                     )}
                 </DialogContent>
@@ -854,6 +1141,9 @@ ${receipt.receiptFooter}
                     </Button>
                     <Button onClick={handlePrintReceipt} color="primary" variant="contained">
                         Print
+                    </Button>
+                    <Button onClick={handleDownloadPDF} color="primary" variant="contained">
+                        Download PDF
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider, Button, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider, Button, Snackbar, Alert, Collapse, IconButton } from '@mui/material';
+import { ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 import orderServices from '../services/orderServices';
 import productService from '../services/productServices';
 
 const CreditCustomers = () => {
     const [creditOrders, setCreditOrders] = useState([]);
     const [products, setProducts] = useState({});
+    const [expandedCustomer, setExpandedCustomer] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     useEffect(() => {
@@ -56,78 +58,106 @@ const CreditCustomers = () => {
         setSnackbar({ ...snackbar, open: false });
     };
 
+    // Group orders by customer
+    const customers = creditOrders.reduce((acc, order) => {
+        const customerName = order.customerName;
+        if (!acc[customerName]) {
+            acc[customerName] = [];
+        }
+        acc[customerName].push(order);
+        return acc;
+    }, {});
+
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
                 Credit Customers
             </Typography>
-            {creditOrders.length === 0 ? (
+            {Object.keys(customers).length === 0 ? (
                 <Typography variant="body1">No credit customers found.</Typography>
             ) : (
-                creditOrders.map((order, index) => {
-                    console.log('Rendering Order:', order);
-                    console.log('Credit Customer Details:', order.creditCustomerDetails);
+                Object.entries(customers).map(([customerName, orders], index) => {
+                    const firstOrder = orders[0];
+                    const totalAmountDue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+                    const hasContact = firstOrder.creditCustomerDetails && (firstOrder.creditCustomerDetails.email || firstOrder.creditCustomerDetails.phone);
+
                     return (
                         <Paper key={index} elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography variant="h6" gutterBottom>
-                                    Order ID: {order.orderId}
+                                    Customer: {customerName}
                                 </Typography>
-                                <Button
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={() => handleSendNotification(order.orderId)}
-                                    disabled={!order.creditCustomerDetails || (!order.creditCustomerDetails.email && !order.creditCustomerDetails.phone)}
-                                    sx={{ mb: 2 }}
+                                <IconButton
+                                    onClick={() => setExpandedCustomer(expandedCustomer === customerName ? null : customerName)}
+                                    aria-expanded={expandedCustomer === customerName}
+                                    aria-label="show more"
                                 >
-                                    Send Reminder
-                                </Button>
+                                    {expandedCustomer === customerName ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                </IconButton>
                             </Box>
-                            <Typography variant="body1">
-                                Date: {new Date(order.orderDate).toLocaleString()}
-                            </Typography>
-                            <Typography variant="body1">
-                                Customer: {order.customerName}
-                            </Typography>
-                            <Typography variant="body1">
-                                Email: {order.creditCustomerDetails ? order.creditCustomerDetails.email : 'Not provided'}
-                            </Typography>
-                            <Typography variant="body1">
-                                Phone: {order.creditCustomerDetails ? order.creditCustomerDetails.phone : 'Not available'}
-                            </Typography>
-                            <Typography variant="body1">
-                                Address: {order.creditCustomerDetails ? order.creditCustomerDetails.address : 'Not available'}
-                            </Typography>
-                            <Divider sx={{ my: 2 }} />
-                            <Typography variant="h6" gutterBottom>
-                                Purchased Products
-                            </Typography>
-                            <TableContainer>
-                                <Table>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Price</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>Subtotal</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {order.items.map((item, idx) => (
-                                            <TableRow key={idx}>
-                                                <TableCell>{products[item.productId] || 'Unknown Product'}</TableCell>
-                                                <TableCell>{item.quantity}</TableCell>
-                                                <TableCell>Rs.{item.sellingPrice.toFixed(2)}</TableCell>
-                                                <TableCell>Rs.{(item.quantity * item.sellingPrice).toFixed(2)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                            <Divider sx={{ my: 2 }} />
-                            <Typography variant="h6">
-                                Total Amount Due: Rs.{order.totalAmount.toFixed(2)}
-                            </Typography>
+                            <Collapse in={expandedCustomer === customerName} timeout="auto" unmountOnExit>
+                                {orders.map((order, orderIndex) => (
+                                    <Box key={orderIndex} sx={{ mt: orderIndex > 0 ? 2 : 0 }}>
+                                        <Typography variant="body1">
+                                            Order ID: {order.orderId}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            Date: {new Date(order.orderDate).toLocaleString()}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            Email: {order.creditCustomerDetails ? order.creditCustomerDetails.email : 'Not provided'}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            Phone: {order.creditCustomerDetails ? order.creditCustomerDetails.phone : 'Not available'}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            Address: {order.creditCustomerDetails ? order.creditCustomerDetails.address : 'Not available'}
+                                        </Typography>
+                                        <Divider sx={{ my: 2 }} />
+                                        <Typography variant="h6" gutterBottom>
+                                            Purchased Products
+                                        </Typography>
+                                        <TableContainer>
+                                            <Table>
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Price</TableCell>
+                                                        <TableCell sx={{ fontWeight: 'bold' }}>Subtotal</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {order.items.map((item, idx) => (
+                                                        <TableRow key={idx}>
+                                                            <TableCell>{products[item.productId] || 'Unknown Product'}</TableCell>
+                                                            <TableCell>{item.quantity}</TableCell>
+                                                            <TableCell>Rs.{item.sellingPrice.toFixed(2)}</TableCell>
+                                                            <TableCell>Rs.{(item.quantity * item.sellingPrice).toFixed(2)}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                        <Divider sx={{ my: 2 }} />
+                                        <Typography variant="h6">
+                                            Total Amount Due for Order: Rs.{order.totalAmount.toFixed(2)}
+                                        </Typography>
+                                        <Button
+                                            variant="contained"
+                                            color="primary"
+                                            onClick={() => handleSendNotification(order.orderId)}
+                                            disabled={!hasContact}
+                                            sx={{ mb: 2, mt: 1 }}
+                                        >
+                                            Send Reminder
+                                        </Button>
+                                    </Box>
+                                ))}
+                                <Typography variant="h6" sx={{ mt: 2 }}>
+                                    Total Amount Due: Rs.{totalAmountDue.toFixed(2)}
+                                </Typography>
+                            </Collapse>
                         </Paper>
                     );
                 })
