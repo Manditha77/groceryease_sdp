@@ -36,9 +36,16 @@ public class ProductService {
     @Transactional
     public ProductDTO addProduct(ProductDTO productDTO) {
         Product product = new Product();
-        product.setProductName(productDTO.getProductName());
-        product.setBarcode(productDTO.getBarcode());
+        String originalProductName = productDTO.getProductName();
+        String modifiedProductName = originalProductName;
         product.setImage(productDTO.getImage());
+
+        // Normalize barcode: treat empty string or null/undefined as null
+        String barcode = productDTO.getBarcode();
+        if (barcode != null && barcode.trim().isEmpty()) {
+            barcode = null;
+        }
+        product.setBarcode(barcode);
 
         Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -48,12 +55,50 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
         product.setSupplier(supplier);
 
-        if (productRepository.existsByProductName(productDTO.getProductName())) {
-            throw new IllegalArgumentException("Product already exists");
+        // Check for other products with the same productName and categoryName but different supplier
+        List<Product> conflictingProducts = productRepository.findByProductNameAndCategoryCategoryName(
+                originalProductName, productDTO.getCategoryName());
+
+        boolean hasConflict = false;
+        for (Product existingProduct : conflictingProducts) {
+            if (!existingProduct.getSupplier().getCompanyName().equals(productDTO.getSupplierCompanyName())) {
+                hasConflict = true;
+                break;
+            }
         }
-        if (productDTO.getBarcode() != null && productRepository.findByBarcode(productDTO.getBarcode()).isPresent()) {
-            throw new IllegalArgumentException("Barcode already exists: " + productDTO.getBarcode());
+
+        // If there's a conflict, modify the productName for both new and existing products
+        if (hasConflict) {
+            modifiedProductName = originalProductName + " (" + productDTO.getSupplierCompanyName() + ")";
+            product.setProductName(modifiedProductName);
+
+            for (Product existingProduct : conflictingProducts) {
+                String existingProductName = existingProduct.getProductName();
+                String supplierCompanyName = existingProduct.getSupplier().getCompanyName();
+                if (!existingProductName.endsWith(" (" + supplierCompanyName + ")")) {
+                    String newProductName = originalProductName + " (" + supplierCompanyName + ")";
+                    existingProduct.setProductName(newProductName);
+                    productRepository.save(existingProduct);
+                }
+            }
+        } else {
+            product.setProductName(originalProductName);
         }
+
+        // Perform uniqueness checks using the original productName
+        if (barcode == null) {
+            boolean nameSupplierExists = productRepository.existsByProductNameAndSupplierCompanyName(
+                    originalProductName, productDTO.getSupplierCompanyName());
+            if (nameSupplierExists) {
+                throw new IllegalArgumentException("Product with name '" + originalProductName +
+                        "' from supplier '" + productDTO.getSupplierCompanyName() + "' already exists");
+            }
+        } else {
+            if (productRepository.findByBarcode(barcode).isPresent()) {
+                throw new IllegalArgumentException("Barcode already exists: " + barcode);
+            }
+        }
+
         if (productDTO.getBuyingPrice() > productDTO.getSellingPrice()) {
             throw new IllegalArgumentException("Buying price must be less than or equal to selling price");
         }
@@ -70,21 +115,21 @@ public class ProductService {
         return convertToDTO(savedProduct);
     }
 
-    public List<ProductDTO> getAllProducts() {
-        List<Product> products = productRepository.findAll();
-        return products.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
     @Transactional
     public ProductDTO updateProduct(Long productId, ProductDTO productDTO) {
         Optional<Product> optionalProduct = productRepository.findById(productId);
         if (optionalProduct.isPresent()) {
             Product product = optionalProduct.get();
-            product.setProductName(productDTO.getProductName());
-            product.setBarcode(productDTO.getBarcode());
+            String originalProductName = productDTO.getProductName();
+            String modifiedProductName = originalProductName;
             product.setImage(productDTO.getImage());
+
+            // Normalize barcode: treat empty string or null/undefined as null
+            String barcode = productDTO.getBarcode();
+            if (barcode != null && barcode.trim().isEmpty()) {
+                barcode = null;
+            }
+            product.setBarcode(barcode);
 
             Category category = categoryRepository.findByCategoryName(productDTO.getCategoryName())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -94,9 +139,52 @@ public class ProductService {
                     .orElseThrow(() -> new RuntimeException("Supplier not found"));
             product.setSupplier(supplier);
 
-            if (productDTO.getBarcode() != null && !productDTO.getBarcode().equals(product.getBarcode()) &&
-                    productRepository.findByBarcode(productDTO.getBarcode()).isPresent()) {
-                throw new IllegalArgumentException("Barcode already exists: " + productDTO.getBarcode());
+            // Check for other products with the same productName and categoryName but different supplier
+            List<Product> conflictingProducts = productRepository.findByProductNameAndCategoryCategoryName(
+                    originalProductName, productDTO.getCategoryName());
+
+            boolean hasConflict = false;
+            for (Product existingProduct : conflictingProducts) {
+                if (!existingProduct.getProductId().equals(productId) &&
+                        !existingProduct.getSupplier().getCompanyName().equals(productDTO.getSupplierCompanyName())) {
+                    hasConflict = true;
+                    break;
+                }
+            }
+
+            // If there's a conflict, modify the productName for both updated and existing products
+            if (hasConflict) {
+                modifiedProductName = originalProductName + " (" + productDTO.getSupplierCompanyName() + ")";
+                product.setProductName(modifiedProductName);
+
+                for (Product existingProduct : conflictingProducts) {
+                    if (!existingProduct.getProductId().equals(productId)) {
+                        String existingProductName = existingProduct.getProductName();
+                        String supplierCompanyName = existingProduct.getSupplier().getCompanyName();
+                        if (!existingProductName.endsWith(" (" + supplierCompanyName + ")")) {
+                            String newProductName = originalProductName + " (" + supplierCompanyName + ")";
+                            existingProduct.setProductName(newProductName);
+                            productRepository.save(existingProduct);
+                        }
+                    }
+                }
+            } else {
+                product.setProductName(originalProductName);
+            }
+
+            // Perform uniqueness checks using the original productName
+            if (barcode == null) {
+                Optional<Product> existingProduct = productRepository.findByProductNameAndSupplierCompanyName(
+                        originalProductName, productDTO.getSupplierCompanyName());
+                if (existingProduct.isPresent() && !existingProduct.get().getProductId().equals(productId)) {
+                    throw new IllegalArgumentException("Product with name '" + originalProductName +
+                            "' from supplier '" + productDTO.getSupplierCompanyName() + "' already exists");
+                }
+            } else {
+                if (!barcode.equals(product.getBarcode()) &&
+                        productRepository.findByBarcode(barcode).isPresent()) {
+                    throw new IllegalArgumentException("Barcode already exists: " + barcode);
+                }
             }
 
             Product updatedProduct = productRepository.save(product);
@@ -163,6 +251,33 @@ public class ProductService {
     }
 
     @Transactional
+    public ProductBatchDTO updateBatch(Long batchId, int quantity, double buyingPrice, double sellingPrice) {
+        Optional<ProductBatch> optionalBatch = productBatchRepository.findById(batchId);
+        if (!optionalBatch.isPresent()) {
+            throw new RuntimeException("Batch not found with ID: " + batchId);
+        }
+
+        ProductBatch batch = optionalBatch.get();
+
+        if (quantity < 0) {
+            throw new IllegalArgumentException("Quantity cannot be negative");
+        }
+        if (buyingPrice <= 0 || sellingPrice <= 0) {
+            throw new IllegalArgumentException("Buying and selling prices must be greater than zero");
+        }
+        if (buyingPrice > sellingPrice) {
+            throw new IllegalArgumentException("Buying price must be less than or equal to selling price");
+        }
+
+        batch.setQuantity(quantity);
+        batch.setBuyingPrice(buyingPrice);
+        batch.setSellingPrice(sellingPrice);
+        productBatchRepository.save(batch);
+
+        return convertToBatchDTO(batch);
+    }
+
+    @Transactional
     public void updateBatchPrices(Long productId, double newBuyingPrice, double newSellingPrice) {
         List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(productId);
         for (ProductBatch batch : batches) {
@@ -191,7 +306,22 @@ public class ProductService {
         if (optionalProduct.isPresent()) {
             return convertToDTO(optionalProduct.get());
         }
-        return null; // Return null if no product is found
+        return null;
+    }
+
+    public ProductDTO getProductByNameAndSupplier(String productName, String supplierCompanyName) {
+        Optional<Product> optionalProduct = productRepository.findByProductNameAndSupplierCompanyName(productName, supplierCompanyName);
+        if (optionalProduct.isPresent()) {
+            return convertToDTO(optionalProduct.get());
+        }
+        return null;
+    }
+
+    public List<ProductDTO> getAllProducts() {
+        List<Product> products = productRepository.findAll();
+        return products.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     private ProductDTO convertToDTO(Product product) {

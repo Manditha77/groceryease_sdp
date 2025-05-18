@@ -32,7 +32,6 @@ public class ReportController {
     @Autowired
     private ReportService reportService;
 
-    // Helper method to determine date range based on time period
     private LocalDateTime[] calculateDateRange(String timePeriod, String startDateStr, String endDateStr) {
         LocalDateTime startDate = null;
         LocalDateTime endDate = LocalDateTime.now();
@@ -48,7 +47,7 @@ public class ReportController {
         } else if ("year".equalsIgnoreCase(timePeriod)) {
             startDate = endDate.minusYears(1);
         } else if ("sofar".equalsIgnoreCase(timePeriod)) {
-            startDate = null; // No filter, fetch all data
+            startDate = null;
             endDate = null;
         }
 
@@ -97,16 +96,19 @@ public class ReportController {
             PdfDocument pdf = new PdfDocument(writer);
             Document document = new Document(pdf);
 
-            // Add Store Details at the top
+            // Add Store Details and Generation Date with right alignment
             Paragraph storeDetails = new Paragraph()
                     .add(new Text("Samantha Store\n").setBold().setFontSize(14))
-                    .add(new Text("Address: Colombo\n"))
-                    .add(new Text("Contact: 0771234567"))
+                    .add(new Text("Address: 33/23, Gaminipura - Meegoda\n"))
+                    .add(new Text("Contact: 0772235273"))
                     .setTextAlignment(TextAlignment.LEFT)
                     .setFontSize(10);
+            Paragraph generationDate = new Paragraph("Generated on: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                    .setTextAlignment(TextAlignment.RIGHT)
+                    .setFontSize(10);
             document.add(storeDetails);
+            document.add(generationDate);
 
-            // Add a line break
             document.add(new Paragraph("\n"));
 
             // Add Report Title (Centered)
@@ -125,9 +127,10 @@ public class ReportController {
                 String dateRangeText = "Period: " + (startDate != null ? startDate : dateRange[0].format(formatter)) +
                         " to " + (endDate != null ? endDate : dateRange[1].format(formatter));
                 document.add(new Paragraph(dateRangeText).setFontSize(10).setTextAlignment(TextAlignment.CENTER));
+            } else {
+                document.add(new Paragraph("Period: All Data (Since Inception)").setFontSize(10).setTextAlignment(TextAlignment.CENTER));
             }
 
-            // Add a line break
             document.add(new Paragraph("\n"));
 
             if (reportData.isEmpty()) {
@@ -152,6 +155,10 @@ public class ReportController {
                             table.addCell(new Cell().add(new Paragraph(dto.getLastRestockDate() != null ? dto.getLastRestockDate().toString() : "N/A")));
                         }
                         document.add(table);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        int totalQuantity = reportData.stream().mapToInt(ReportDTO::getTotalQuantity).sum();
+                        document.add(new Paragraph("Total Quantity in Stock: " + totalQuantity).setFontSize(10));
                         break;
 
                     case "sales":
@@ -160,7 +167,7 @@ public class ReportController {
                         salesTable.addHeaderCell(new Cell().add(new Paragraph("Order Type").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         salesTable.addHeaderCell(new Cell().add(new Paragraph("Payment Method").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         salesTable.addHeaderCell(new Cell().add(new Paragraph("Total Orders").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        salesTable.addHeaderCell(new Cell().add(new Paragraph("Total Sales").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        salesTable.addHeaderCell(new Cell().add(new Paragraph("Total Sales Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         salesTable.addHeaderCell(new Cell().add(new Paragraph("Earliest Order").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         salesTable.addHeaderCell(new Cell().add(new Paragraph("Latest Order").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         for (ReportDTO dto : reportData) {
@@ -172,6 +179,12 @@ public class ReportController {
                             salesTable.addCell(new Cell().add(new Paragraph(dto.getLatestOrderDate() != null ? dto.getLatestOrderDate().toString() : "N/A")));
                         }
                         document.add(salesTable);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        long totalOrders = reportData.stream().mapToLong(ReportDTO::getTotalOrders).sum();
+                        double totalSales = reportData.stream().mapToDouble(ReportDTO::getTotalSales).sum();
+                        document.add(new Paragraph("Total Orders: " + totalOrders).setFontSize(10));
+                        document.add(new Paragraph("Total Sales: Rs." + String.format("%.2f", totalSales)).setFontSize(10));
                         break;
 
                     case "productsales":
@@ -180,7 +193,7 @@ public class ReportController {
                         productSalesTable.addHeaderCell(new Cell().add(new Paragraph("Product Name").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         productSalesTable.addHeaderCell(new Cell().add(new Paragraph("Category").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         productSalesTable.addHeaderCell(new Cell().add(new Paragraph("Total Units Sold").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        productSalesTable.addHeaderCell(new Cell().add(new Paragraph("Total Revenue").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        productSalesTable.addHeaderCell(new Cell().add(new Paragraph("Total Revenue Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         for (ReportDTO dto : reportData) {
                             productSalesTable.addCell(new Cell().add(new Paragraph(dto.getProductName())));
                             productSalesTable.addCell(new Cell().add(new Paragraph(dto.getCategoryName())));
@@ -188,6 +201,12 @@ public class ReportController {
                             productSalesTable.addCell(new Cell().add(new Paragraph(String.format("%.2f", dto.getTotalRevenue()))));
                         }
                         document.add(productSalesTable);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        int totalUnitsSold = reportData.stream().mapToInt(ReportDTO::getTotalUnitsSold).sum();
+                        double totalRevenue = reportData.stream().mapToDouble(ReportDTO::getTotalRevenue).sum();
+                        document.add(new Paragraph("Total Units Sold: " + totalUnitsSold).setFontSize(10));
+                        document.add(new Paragraph("Total Revenue: Rs." + String.format("%.2f", totalRevenue)).setFontSize(10));
                         break;
 
                     case "restock":
@@ -196,7 +215,7 @@ public class ReportController {
                         restockTable.addHeaderCell(new Cell().add(new Paragraph("Product Name").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         restockTable.addHeaderCell(new Cell().add(new Paragraph("Supplier").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         restockTable.addHeaderCell(new Cell().add(new Paragraph("Quantity Restocked").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        restockTable.addHeaderCell(new Cell().add(new Paragraph("Buying Price").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        restockTable.addHeaderCell(new Cell().add(new Paragraph("Buying Price Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         restockTable.addHeaderCell(new Cell().add(new Paragraph("Restock Date").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         for (ReportDTO dto : reportData) {
                             restockTable.addCell(new Cell().add(new Paragraph(dto.getProductName())));
@@ -206,6 +225,12 @@ public class ReportController {
                             restockTable.addCell(new Cell().add(new Paragraph(dto.getLastRestockDate() != null ? dto.getLastRestockDate().toString() : "N/A")));
                         }
                         document.add(restockTable);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        int totalQuantityRestocked = reportData.stream().mapToInt(ReportDTO::getQuantityRestocked).sum();
+                        double totalCost = reportData.stream().mapToDouble(dto -> dto.getQuantityRestocked() * dto.getBuyingPrice()).sum();
+                        document.add(new Paragraph("Total Quantity Restocked: " + totalQuantityRestocked).setFontSize(10));
+                        document.add(new Paragraph("Total Cost: Rs." + String.format("%.2f", totalCost)).setFontSize(10));
                         break;
 
                     case "customer":
@@ -213,7 +238,7 @@ public class ReportController {
                         customerTable.setWidth(UnitValue.createPercentValue(100));
                         customerTable.addHeaderCell(new Cell().add(new Paragraph("Customer").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         customerTable.addHeaderCell(new Cell().add(new Paragraph("Total Orders").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        customerTable.addHeaderCell(new Cell().add(new Paragraph("Total Spent").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        customerTable.addHeaderCell(new Cell().add(new Paragraph("Total Spent Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         customerTable.addHeaderCell(new Cell().add(new Paragraph("Last Order Date").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         customerTable.addHeaderCell(new Cell().add(new Paragraph("Order Types").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         for (ReportDTO dto : reportData) {
@@ -224,6 +249,12 @@ public class ReportController {
                             customerTable.addCell(new Cell().add(new Paragraph(dto.getOrderTypes() != null ? dto.getOrderTypes().replace(",", ", ") : "N/A")));
                         }
                         document.add(customerTable);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        long totalCustomerOrders = reportData.stream().mapToLong(ReportDTO::getTotalOrders).sum();
+                        double totalSpent = reportData.stream().mapToDouble(ReportDTO::getTotalSpent).sum();
+                        document.add(new Paragraph("Total Orders: " + totalCustomerOrders).setFontSize(10));
+                        document.add(new Paragraph("Total Spent: Rs." + String.format("%.2f", totalSpent)).setFontSize(10));
                         break;
 
                     case "profit":
@@ -231,9 +262,9 @@ public class ReportController {
                         profitTable.setWidth(UnitValue.createPercentValue(100));
                         profitTable.addHeaderCell(new Cell().add(new Paragraph("Product Name").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         profitTable.addHeaderCell(new Cell().add(new Paragraph("Total Units Sold").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Total Revenue").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Total Cost").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
-                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Profit").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Total Revenue Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Total Cost Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                        profitTable.addHeaderCell(new Cell().add(new Paragraph("Profit Rs.").setBold()).setBackgroundColor(ColorConstants.LIGHT_GRAY));
                         for (ReportDTO dto : reportData) {
                             profitTable.addCell(new Cell().add(new Paragraph(dto.getProductName())));
                             profitTable.addCell(new Cell().add(new Paragraph(String.valueOf(dto.getTotalUnitsSold()))));
@@ -242,6 +273,16 @@ public class ReportController {
                             profitTable.addCell(new Cell().add(new Paragraph(String.format("%.2f", dto.getProfit()))));
                         }
                         document.add(profitTable);
+                        // Summary as one-by-one details
+                        document.add(new Paragraph("\nSummary").setBold().setFontSize(12));
+                        int totalUnitsSoldProfit = reportData.stream().mapToInt(ReportDTO::getTotalUnitsSold).sum();
+                        double totalRevenueProfit = reportData.stream().mapToDouble(ReportDTO::getTotalRevenue).sum();
+                        double totalCostProfit = reportData.stream().mapToDouble(ReportDTO::getTotalCost).sum();
+                        double totalProfit = reportData.stream().mapToDouble(ReportDTO::getProfit).sum();
+                        document.add(new Paragraph("Total Units Sold: " + totalUnitsSoldProfit).setFontSize(10));
+                        document.add(new Paragraph("Total Revenue: Rs." + String.format("%.2f", totalRevenueProfit)).setFontSize(10));
+                        document.add(new Paragraph("Total Cost: Rs." + String.format("%.2f", totalCostProfit)).setFontSize(10));
+                        document.add(new Paragraph("Total Profit: Rs." + String.format("%.2f", totalProfit)).setFontSize(10));
                         break;
 
                     default:

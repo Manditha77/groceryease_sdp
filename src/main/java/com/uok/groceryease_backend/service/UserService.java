@@ -88,7 +88,6 @@ public class UserService {
 
     @Transactional
     public User registerCreditCustomer(UserRegistrationDTO userDTO) {
-        // Check if a customer already exists with the given phone number
         Optional<User> existingUser = userRepository.findAll().stream()
                 .filter(user -> user.getPhoneNo() != null && user.getPhoneNo().equals(userDTO.getPhoneNo()))
                 .findFirst();
@@ -97,11 +96,10 @@ public class UserService {
             return existingUser.get();
         }
 
-        // Create a new credit customer
         Customer customer = new Customer();
         customer.setFirstName(userDTO.getFirstName());
         customer.setLastName(userDTO.getLastName());
-        customer.setEmail(userDTO.getEmail() != null ? userDTO.getEmail() : ""); // Email can be empty
+        customer.setEmail(userDTO.getEmail() != null ? userDTO.getEmail() : "");
         customer.setPhoneNo(userDTO.getPhoneNo());
         customer.setUserType(UserType.CUSTOMER);
         customer.setAddress(userDTO.getAddress());
@@ -161,6 +159,7 @@ public class UserService {
         return null;
     }
 
+    @Transactional
     public UserRegistrationDTO updateUser(Long userId, UserRegistrationDTO userDTO) {
         Optional<User> optionalUser = userRepository.findById(userId);
         if (optionalUser.isPresent()) {
@@ -184,9 +183,13 @@ public class UserService {
             User updatedUser = userRepository.save(user);
 
             UserAuth userAuth = userAuthRepository.findByUser(updatedUser);
-            userAuth.setUsername(userDTO.getUsername());
-            userAuth.setPassword(userDTO.getPassword());
-
+            // Only update username and password if they are provided in the DTO
+            if (userDTO.getUsername() != null) {
+                userAuth.setUsername(userDTO.getUsername());
+            }
+            if (userDTO.getPassword() != null) {
+                userAuth.setPassword(userDTO.getPassword());
+            }
             userAuthRepository.save(userAuth);
 
             return convertToDTO(updatedUser, userAuth);

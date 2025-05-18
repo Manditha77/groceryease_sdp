@@ -28,8 +28,8 @@ public class ProductController {
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
-            @RequestParam("barcode") String barcode,
-            @RequestParam("image") MultipartFile image) throws IOException {
+            @RequestParam(value = "barcode", required = false) String barcode,
+            @RequestParam(value = "image", required = false) MultipartFile image) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
         productDTO.setProductName(productName);
@@ -67,7 +67,7 @@ public class ProductController {
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
-            @RequestParam("barcode") String barcode,
+            @RequestParam(value = "barcode", required = false) String barcode,
             @RequestParam(value = "image", required = false) MultipartFile image) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
@@ -103,6 +103,17 @@ public class ProductController {
         return ResponseEntity.ok(restockedProduct);
     }
 
+    @PutMapping("/batches/{batchId}")
+    public ResponseEntity<ProductBatchDTO> updateBatch(
+            @PathVariable Long batchId,
+            @RequestParam("quantity") int quantity,
+            @RequestParam("buyingPrice") double buyingPrice,
+            @RequestParam("sellingPrice") double sellingPrice) {
+
+        ProductBatchDTO updatedBatch = productService.updateBatch(batchId, quantity, buyingPrice, sellingPrice);
+        return ResponseEntity.ok(updatedBatch);
+    }
+
     @PutMapping("/{productId}/update-prices")
     public ResponseEntity<Void> updateBatchPrices(
             @PathVariable Long productId,
@@ -128,6 +139,18 @@ public class ProductController {
     @GetMapping("/barcode/{barcode}")
     public ResponseEntity<ProductDTO> getProductByBarcode(@PathVariable String barcode) {
         ProductDTO product = productService.getProductByBarcode(barcode);
+        if (product != null) {
+            return ResponseEntity.ok(product);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/name-supplier")
+    public ResponseEntity<ProductDTO> getProductByNameAndSupplier(
+            @RequestParam("productName") String productName,
+            @RequestParam("supplierCompanyName") String supplierCompanyName) {
+        ProductDTO product = productService.getProductByNameAndSupplier(productName, supplierCompanyName);
         if (product != null) {
             return ResponseEntity.ok(product);
         } else {

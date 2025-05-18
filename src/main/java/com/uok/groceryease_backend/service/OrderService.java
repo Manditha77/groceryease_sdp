@@ -259,7 +259,15 @@ public class OrderService {
         boolean isInventoryAdjusted = order.getInventoryAdjusted() != null ? order.getInventoryAdjusted() : false;
         List<String> inventoryWarnings = new ArrayList<>();
 
-        if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted && order.getOrderType() == Order.OrderType.ECOMMERCE) {
+        // Handle status transitions
+        if (newStatus == Order.Status.PROCESSING) {
+            // Validate transition (e.g., only from PENDING to PROCESSING)
+            if (previousStatus != Order.Status.PENDING) {
+                throw new IllegalStateException("Order can only be set to PROCESSING from PENDING status.");
+            }
+            // No inventory adjustment needed for PROCESSING; just update status
+            order.setStatus(newStatus);
+        } else if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted && order.getOrderType() == Order.OrderType.ECOMMERCE) {
             for (OrderItem item : order.getItems()) {
                 List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(item.getProductId());
                 int remainingQuantity = item.getQuantity();
@@ -292,9 +300,7 @@ public class OrderService {
             if (inventoryWarnings.isEmpty()) {
                 order.setInventoryAdjusted(true);
             }
-        }
-
-        if (newStatus == Order.Status.CANCELLED && isInventoryAdjusted) {
+        } else if (newStatus == Order.Status.CANCELLED && isInventoryAdjusted) {
             for (OrderItem item : order.getItems()) {
                 ProductBatch batch = item.getBatch();
                 if (batch != null) {
@@ -308,9 +314,11 @@ public class OrderService {
             if (inventoryWarnings.isEmpty()) {
                 order.setInventoryAdjusted(false);
             }
+        } else {
+            // Handle other status transitions (e.g., PENDING to CANCELLED without inventory adjustment)
+            order.setStatus(newStatus);
         }
 
-        order.setStatus(newStatus);
         Order savedOrder = orderRepository.save(order);
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
