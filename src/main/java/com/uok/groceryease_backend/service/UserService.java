@@ -12,7 +12,10 @@ import com.uok.groceryease_backend.DAO.UserRepository;
 import com.uok.groceryease_backend.DAO.CustomerRepository;
 import com.uok.groceryease_backend.DAO.EmployeeRepository;
 import com.uok.groceryease_backend.DAO.OwnerRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,13 +36,35 @@ public class UserService {
     private EmployeeRepository employeeRepository;
     @Autowired
     private OwnerRepository ownerRepository;
+    @Autowired
+    private BCryptPasswordEncoder passwordEncoder;
+
+    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     public UserRegistrationDTO loginUser(String username, String password) {
         UserAuth userAuth = userAuthRepository.findByUsername(username);
-        if (userAuth != null && userAuth.getPassword().equals(password)) {
+        if (userAuth != null && passwordEncoder.matches(password, userAuth.getPassword())) {
             return convertToDTO(userAuth.getUser(), userAuth);
         }
         return null;
+    }
+
+    public User findUserByUsername(String username) {
+        logger.info("Looking up user with username: {}", username);
+
+        // Find UserAuth record by username (throws NoResultException if not found)
+        UserAuth userAuth = userAuthRepository.findByUsername(username);
+        logger.info("Found UserAuth with ID: {}, user_id: {}", userAuth.getAuthId(),
+                userAuth.getUser() != null ? userAuth.getUser().getUserId() : "null");
+
+        // Get the associated User entity
+        User user = userAuth.getUser();
+        if (user == null) {
+            logger.error("No User associated with username: {}", username);
+            throw new RuntimeException("No User associated with username: " + username);
+        }
+
+        return user;
     }
 
     @Transactional
@@ -71,8 +96,7 @@ public class UserService {
         UserAuth userAuth = new UserAuth();
         userAuth.setUser(savedUser);
         userAuth.setUsername(userDTO.getUsername());
-        userAuth.setPassword(userDTO.getPassword());
-
+        userAuth.setPassword(passwordEncoder.encode(userDTO.getPassword())); // Encode password
         userAuthRepository.save(userAuth);
 
         if (user instanceof Customer) {
@@ -173,6 +197,7 @@ public class UserService {
             if (user instanceof Customer) {
                 Customer customer = (Customer) user;
                 customer.setAddress(userDTO.getAddress());
+                customer.setCustomerType(userDTO.getCustomerType());
             } else if (user instanceof Employee) {
                 Employee employee = (Employee) user;
                 employee.setAddress(userDTO.getAddress());
@@ -188,13 +213,32 @@ public class UserService {
                 userAuth.setUsername(userDTO.getUsername());
             }
             if (userDTO.getPassword() != null) {
-                userAuth.setPassword(userDTO.getPassword());
+                userAuth.setPassword(passwordEncoder.encode(userDTO.getPassword()));
             }
             userAuthRepository.save(userAuth);
 
             return convertToDTO(updatedUser, userAuth);
         }
         return null;
+    }
+
+    @Transactional
+    public void resetPassword(Long userId, String oldPassword, String newPassword) {
+        Optional<User> optionalUser = userRepository.findById(userId);
+        if (!optionalUser.isPresent()) {
+            throw new RuntimeException("User not found with ID: " + userId);
+        }
+        User user = optionalUser.get();
+        UserAuth userAuth = userAuthRepository.findByUser(user);
+
+        // Verify old password
+        if (!passwordEncoder.matches(oldPassword, userAuth.getPassword())) {
+            throw new RuntimeException("Old password is incorrect.");
+        }
+
+        // Update to new password
+        userAuth.setPassword(passwordEncoder.encode(newPassword));
+        userAuthRepository.save(userAuth);
     }
 
     @Transactional
@@ -217,7 +261,8 @@ public class UserService {
         userDTO.setUserType(user.getUserType());
         if (userAuth != null) {
             userDTO.setUsername(userAuth.getUsername());
-            userDTO.setPassword(userAuth.getPassword());
+            // Avoid returning the password (even hashed) for security
+            // userDTO.setPassword(userAuth.getPassword()); // Commented out
         }
 
         if (user instanceof Customer) {

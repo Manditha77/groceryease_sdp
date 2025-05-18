@@ -3,6 +3,7 @@ package com.uok.groceryease_backend.controller;
 import com.uok.groceryease_backend.DTO.OrderDTO;
 import com.uok.groceryease_backend.service.OrderService;
 import com.uok.groceryease_backend.service.LoanNotificationService;
+import com.uok.groceryease_backend.service.OrderNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,9 @@ public class OrderController {
 
     @Autowired
     private LoanNotificationService loanNotificationService;
+
+    @Autowired
+    private OrderNotificationService orderNotificationService;
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> createOrder(@RequestBody OrderDTO orderDTO) {
@@ -94,6 +98,36 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/{orderId}/send-order-received-notification")
+    public ResponseEntity<Map<String, Object>> sendOrderReceivedNotification(@PathVariable Long orderId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            orderNotificationService.sendOrderReceivedNotification(orderId);
+            response.put("success", true);
+            response.put("message", "Order received notification sent successfully for Order ID: " + orderId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/{orderId}/send-order-completed-notification")
+    public ResponseEntity<Map<String, Object>> sendOrderCompletedNotification(@PathVariable Long orderId) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            orderNotificationService.sendOrderCompletedNotification(orderId);
+            response.put("success", true);
+            response.put("message", "Order completed notification sent successfully for Order ID: " + orderId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
     @PostMapping("/test-email")
     public ResponseEntity<Map<String, Object>> sendTestEmail(@RequestBody Map<String, String> request) {
         Map<String, Object> response = new HashMap<>();
@@ -113,5 +147,31 @@ public class OrderController {
             response.put("message", "Failed to send test email: " + e.getMessage());
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    @GetMapping("/credit")
+    public ResponseEntity<List<OrderDTO>> getCreditOrdersByPaymentStatus(@RequestParam("isPaid") boolean isPaid) {
+        List<OrderDTO> orders = orderService.getCreditOrdersByPaymentStatus(isPaid);
+        return ResponseEntity.ok(orders);
+    }
+
+    @GetMapping("/today")
+    public ResponseEntity<Map<String, Double>> getTodaySales() {
+        Map<String, Double> salesData = orderService.getTodaySales();
+        return ResponseEntity.ok(salesData);
+    }
+
+    @GetMapping("/today/categories")
+    public ResponseEntity<List<Map<String, Object>>> getTodaySalesByCategory() {
+        List<Map<String, Object>> categorySales = orderService.getTodaySalesByCategory();
+        return ResponseEntity.ok(categorySales);
+    }
+
+    @GetMapping("/pre-orders/pending")
+    public ResponseEntity<Map<String, Integer>> getPendingPreOrdersQuantity() {
+        int totalQuantity = orderService.getPendingPreOrdersQuantity();
+        Map<String, Integer> response = new HashMap<>();
+        response.put("toReceive", totalQuantity);
+        return ResponseEntity.ok(response);
     }
 }

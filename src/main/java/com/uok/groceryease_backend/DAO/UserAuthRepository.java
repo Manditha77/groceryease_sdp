@@ -8,4 +8,5 @@ public interface UserAuthRepository extends JpaRepository<UserAuth, Long> {
     UserAuth findByUser(User user);
     void deleteByUser(User user);
     UserAuth findByUsername(String username);
+
 }

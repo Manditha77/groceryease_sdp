@@ -16,10 +16,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,12 +54,21 @@ public class OrderService {
             order.setStatus(Order.Status.valueOf(orderDTO.getStatus()));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid status: " + orderDTO.getStatus() + ". Must be one of: " +
-                    java.util.Arrays.toString(Order.Status.values()));
+                    Arrays.toString(Order.Status.values()));
         }
         order.setOrderDate(LocalDateTime.now());
         order.setInventoryAdjusted(false);
         order.setOrderType(Order.OrderType.ECOMMERCE);
-        order.setUsername(orderDTO.getUsername());
+
+        // Look up the User by username and set it on the Order
+        String username = orderDTO.getUsername();
+        if (username != null && !username.isEmpty()) {
+            User user = userService.findUserByUsername(username);
+            order.setUser(user);
+            order.setUsername(username); // Keep this for now, but it may be redundant
+        } else {
+            throw new IllegalArgumentException("Username must be provided for e-commerce orders.");
+        }
 
         List<OrderItem> orderItems = new ArrayList<>();
         List<String> inventoryWarnings = new ArrayList<>();
@@ -253,7 +261,7 @@ public class OrderService {
             newStatus = Order.Status.valueOf(status);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid status: " + status + ". Must be one of: " +
-                    java.util.Arrays.toString(Order.Status.values()));
+                    Arrays.toString(Order.Status.values()));
         }
 
         boolean isInventoryAdjusted = order.getInventoryAdjusted() != null ? order.getInventoryAdjusted() : false;
@@ -315,7 +323,7 @@ public class OrderService {
                 order.setInventoryAdjusted(false);
             }
         } else {
-            // Handle other status transitions (e.g., PENDING to CANCELLED without inventory adjustment)
+            // Handle other status transitions (e.g., PENDING to CANCELLED without inventory adjustment, or to PAID)
             order.setStatus(newStatus);
         }
 
@@ -333,6 +341,84 @@ public class OrderService {
                 .filter(order -> order.getUsername() != null && order.getUsername().equals(username))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    public List<OrderDTO> getCreditOrdersByPaymentStatus(boolean isPaid) {
+        return orderRepository.findAllWithItems().stream()
+                .filter(order -> order.getPaymentMethod().equalsIgnoreCase("Credit Purpose"))
+                .filter(order -> isPaid ? order.getStatus() == Order.Status.PAID : order.getStatus() != Order.Status.PAID)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public Map<String, Double> getTodaySales() {
+        LocalDate today = LocalDate.now();
+        List<Order> orders = orderRepository.findAllWithItems().stream()
+                .filter(order -> order.getOrderDate().toLocalDate().equals(today))
+                .collect(Collectors.toList());
+
+        Map<String, Double> salesData = new HashMap<>();
+        double totalSales = 0.0;
+        double onlineSales = 0.0;
+        double posSales = 0.0;
+
+        for (Order order : orders) {
+            double amount = order.getTotalAmount() != null ? order.getTotalAmount() : 0.0;
+            totalSales += amount;
+            if (order.getOrderType() == Order.OrderType.ECOMMERCE) {
+                onlineSales += amount;
+            } else if (order.getOrderType() == Order.OrderType.POS) {
+                posSales += amount;
+            }
+        }
+
+        salesData.put("totalSales", totalSales);
+        salesData.put("onlineSales", onlineSales);
+        salesData.put("posSales", posSales);
+        return salesData;
+    }
+
+    public List<Map<String, Object>> getTodaySalesByCategory() {
+        LocalDate today = LocalDate.now();
+        List<Order> orders = orderRepository.findAllWithItems().stream()
+                .filter(order -> order.getOrderDate().toLocalDate().equals(today))
+                .collect(Collectors.toList());
+
+        Map<String, Double> categorySales = new HashMap<>();
+
+        for (Order order : orders) {
+            for (OrderItem item : order.getItems()) {
+                Optional<Product> productOptional = productRepository.findById(item.getProductId());
+                if (productOptional.isPresent()) {
+                    Product product = productOptional.get();
+                    String categoryName = product.getCategory().getCategoryName();
+                    double itemTotal = item.getSellingPrice() * item.getQuantity();
+                    categorySales.merge(categoryName, itemTotal, Double::sum);
+                }
+            }
+        }
+
+        return categorySales.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("categoryName", entry.getKey());
+                    map.put("sales", entry.getValue());
+                    return map;
+                })
+                .sorted((a, b) -> Double.compare((Double) b.get("sales"), (Double) a.get("sales")))
+                .collect(Collectors.toList());
+    }
+
+    public int getPendingPreOrdersQuantity() {
+        List<Order> pendingOrders = orderRepository.findAllWithItems().stream()
+                .filter(order -> order.getOrderType() == Order.OrderType.ECOMMERCE)
+                .filter(order -> order.getStatus() == Order.Status.PENDING || order.getStatus() == Order.Status.PROCESSING)
+                .collect(Collectors.toList());
+
+        return pendingOrders.stream()
+                .flatMap(order -> order.getItems().stream())
+                .mapToInt(OrderItem::getQuantity)
+                .sum();
     }
 
     private OrderDTO convertToDTO(Order order) {
@@ -357,7 +443,6 @@ public class OrderService {
         }).collect(Collectors.toList());
         orderDTO.setItems(itemDTOs);
 
-        // Map credit customer details from the linked User entity
         if ("Credit Purpose".equals(order.getPaymentMethod())) {
             logger.info("Order ID: {}, Payment Method: Credit Purpose, Checking for user...", order.getOrderId());
             if (order.getUser() != null) {

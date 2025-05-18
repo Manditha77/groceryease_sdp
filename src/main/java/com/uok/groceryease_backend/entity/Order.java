@@ -36,7 +36,7 @@ public class Order {
     private List<OrderItem> items;
 
     public enum Status {
-        PENDING, PROCESSING, COMPLETED, CANCELLED
+        PENDING, PROCESSING, COMPLETED, CANCELLED, PAID // Added PAID status
     }
 
     public enum OrderType {

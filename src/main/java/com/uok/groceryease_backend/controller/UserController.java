@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -73,9 +75,19 @@ public class UserController {
         return ResponseEntity.notFound().build();
     }
 
+    @PutMapping("/users/{userId}/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@PathVariable Long userId, @RequestBody Map<String, String> request) {
+        String oldPassword = request.get("oldPassword");
+        String newPassword = request.get("newPassword");
+        userService.resetPassword(userId, oldPassword, newPassword);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Password reset successfully.");
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
         userService.deleteUser(userId);
-        return ResponseEntity.noContent().build();           
+        return ResponseEntity.noContent().build();
     }
 }
