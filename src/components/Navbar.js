@@ -10,6 +10,7 @@ import Badge from '@mui/material/Badge';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { styled } from '@mui/system';
 import { AccountCircle } from '@mui/icons-material';
+import LogoutIcon from '@mui/icons-material/Logout';
 import {
     Dialog,
     DialogActions,
@@ -66,9 +67,9 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
     };
 
     return (
-        <AppBar position="fixed" sx={{ backgroundColor: '#53F47E', width: '100%' }}>
+        <AppBar position="fixed" sx={{ background: 'linear-gradient(90deg, #53F47E 0%, #2E7D32 100%)', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)', zIndex: 1200, }}>
             <Toolbar>
-                <Title variant="h6" color="black">
+                <Title variant="h6" sx={{ color: '#000000', fontWeight: 'bold', fontSize: 26 }}>
                     GroceryEase
                 </Title>
                 {isAuthenticated ? (
@@ -105,7 +106,7 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                         )}
                         <Typography
                             variant="h6"
-                            color="black"
+                            color="white"
                             sx={{ marginRight: 2 }}
                         >
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -113,11 +114,13 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                                 {username}
                             </Box>
                         </Typography>
+
                         <Button
                             color="inherit"
-                            sx={{ textTransform: 'none', color: 'black', fontSize: 20 }}
+                            sx={{ textTransform: 'none', color: 'white', fontSize: 20 }}
                             onClick={handleOpenDialogLogout}
                         >
+                            <LogoutIcon sx={{ fontSize: 30, color: 'white' }} />
                             Logout
                         </Button>
                     </>

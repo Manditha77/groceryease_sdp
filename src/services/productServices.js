@@ -15,11 +15,15 @@ const addProduct = async (productData) => {
     const formData = new FormData();
     formData.append("productName", productData.productName);
     formData.append("categoryName", productData.categoryName);
-    formData.append("quantity", Number(productData.quantity) || 0);
+    formData.append("units", Number(productData.units) || 0); // Changed from quantity to units
     formData.append("buyingPrice", Number(productData.buyingPrice) || 0.0);
     formData.append("sellingPrice", Number(productData.sellingPrice) || 0.0);
     formData.append("supplierCompanyName", productData.supplierCompanyName);
     formData.append("barcode", productData.barcode === '' ? '' : productData.barcode);
+    formData.append("unitType", productData.unitType || "DISCRETE"); // Added unitType
+    if (productData.expireDate) {
+        formData.append("expireDate", productData.expireDate); // Added expireDate
+    }
 
     let fileToUpload;
     if (productData.image instanceof File) {
@@ -43,11 +47,15 @@ const updateProduct = async (productId, productData) => {
     const formData = new FormData();
     formData.append("productName", productData.productName);
     formData.append("categoryName", productData.categoryName);
-    formData.append("quantity", Number(productData.quantity) || 0);
+    formData.append("units", Number(productData.units) || 0); // Changed from quantity to units
     formData.append("buyingPrice", Number(productData.buyingPrice) || 0.0);
     formData.append("sellingPrice", Number(productData.sellingPrice) || 0.0);
     formData.append("supplierCompanyName", productData.supplierCompanyName);
     formData.append("barcode", productData.barcode === '' ? null : productData.barcode);
+    formData.append("unitType", productData.unitType || "DISCRETE"); // Added unitType
+    if (productData.expireDate) {
+        formData.append("expireDate", productData.expireDate); // Added expireDate
+    }
 
     let fileToUpload;
     if (productData.image instanceof File) {
@@ -67,13 +75,16 @@ const updateProduct = async (productId, productData) => {
     return response.data;
 };
 
-const restockProduct = async (productId, quantity, buyingPrice, sellingPrice, batchId) => {
+const restockProduct = async (productId, units, buyingPrice, sellingPrice, batchId, expireDate) => { // Changed quantity to units, added expireDate
     const formData = new FormData();
-    formData.append("quantity", Number(quantity));
+    formData.append("units", Number(units)); // Changed from quantity to units
     formData.append("buyingPrice", Number(buyingPrice));
     formData.append("sellingPrice", Number(sellingPrice));
     if (batchId) {
         formData.append("batchId", batchId);
+    }
+    if (expireDate) {
+        formData.append("expireDate", expireDate); // Added expireDate
     }
     const response = await axios.post(`${API_URL_PRODUCT}/${productId}/restock`, formData, {
         headers: {
@@ -83,17 +94,24 @@ const restockProduct = async (productId, quantity, buyingPrice, sellingPrice, ba
     return response.data;
 };
 
-const updateBatch = async (batchId, quantity, buyingPrice, sellingPrice) => {
+const updateBatch = async (batchId, units, buyingPrice, sellingPrice, expireDate) => { // Changed quantity to units, added expireDate
     const formData = new FormData();
-    formData.append("quantity", Number(quantity));
+    formData.append("units", Number(units)); // Changed from quantity to units
     formData.append("buyingPrice", Number(buyingPrice));
     formData.append("sellingPrice", Number(sellingPrice));
+    if (expireDate) {
+        formData.append("expireDate", expireDate); // Added expireDate
+    }
     const response = await axios.put(`${API_URL_PRODUCT}/batches/${batchId}`, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
     });
     return response.data;
+};
+
+const deleteBatch = (batchId) => {
+    return axios.delete(`${API_URL_PRODUCT}/batches/${batchId}`);
 };
 
 const deleteProduct = (productId) => {
@@ -116,6 +134,10 @@ const getProductByNameAndSupplier = async (productName, supplierCompanyName) => 
     }
 };
 
+const getExpiringBatches = () => {
+    return axios.get(`${API_URL_PRODUCT}/expiring-batches`);
+};
+
 const productService = {
     getAllProducts,
     getProductBatches,
@@ -123,9 +145,11 @@ const productService = {
     updateProduct,
     restockProduct,
     updateBatch,
+    deleteBatch, // Added new method
     deleteProduct,
     getProductByBarcode,
     getProductByNameAndSupplier,
+    getExpiringBatches,
 };
 
 export default productService;

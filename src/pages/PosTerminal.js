@@ -38,6 +38,8 @@ const PosTerminal = () => {
     const [isPrinting, setIsPrinting] = useState(false);
     const [receipt, setReceipt] = useState(null);
     const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
+    const [editUnitItem, setEditUnitItem] = useState(null); // Track item being edited
+    const [editUnitValue, setEditUnitValue] = useState(''); // Input value for manual edit
     const scannerRef = useRef(null);
 
     const loggedInUser = authService.getLoggedInUser();
@@ -59,11 +61,12 @@ const PosTerminal = () => {
                     p.productId &&
                     p.productName &&
                     typeof p.productName === 'string' &&
-                    typeof p.quantity === 'number' &&
-                    typeof p.sellingPrice === 'number'
+                    typeof p.units === 'number' &&
+                    typeof p.sellingPrice === 'number' &&
+                    p.unitType
                 );
                 setProducts(validProducts);
-                console.log('Fetched products:', validProducts); // Debug log
+                console.log('Fetched products:', validProducts);
             }
             if (customerResponse) setExistingCustomers(customerResponse);
         } catch (error) {
@@ -93,7 +96,7 @@ const PosTerminal = () => {
                             if (product) {
                                 const restockPromise = productService.restockProduct(
                                     product.productId,
-                                    item.quantity,
+                                    item.units,
                                     product.buyingPrice,
                                     product.sellingPrice,
                                     null
@@ -188,7 +191,7 @@ const PosTerminal = () => {
                     const response = await responsePromise;
                     const product = response.data;
                     if (product) {
-                        if (product.quantity <= 0) {
+                        if (product.units <= 0) {
                             setErrorMessage(`${product.productName} is out of stock.`);
                             setOpenSnackbar(true);
                         } else {
@@ -323,7 +326,7 @@ const PosTerminal = () => {
 
             if (e.key === '+' || e.key === '-') {
                 if (!selectedItem) {
-                    setErrorMessage('Please select an item from the cart to adjust quantity.');
+                    setErrorMessage('Please select an item from the cart to adjust units.');
                     setOpenSnackbar(true);
                     return;
                 }
@@ -332,29 +335,38 @@ const PosTerminal = () => {
                 const product = products.find(p => p.productId === selectedItem);
                 if (!item || !product) return;
 
-                let newQuantity;
+                let newUnits;
+                const increment = product.unitType === 'WEIGHT' ? 0.25 : 1; // Keep increment at 0.25 for WEIGHT
                 if (e.key === '+') {
-                    newQuantity = item.quantity + 1;
-                    if (newQuantity > product.quantity) {
-                        setErrorMessage(`Cannot increase quantity. Only ${product.quantity} units of ${product.productName} in stock.`);
+                    newUnits = item.units + increment;
+                    if (newUnits > product.units) {
+                        setErrorMessage(`Cannot increase units. Only ${product.units} units of ${product.productName} in stock.`);
                         setOpenSnackbar(true);
                         return;
                     }
-                    setTotalAmount(prevTotal => prevTotal + product.sellingPrice);
+                    setTotalAmount(prevTotal => prevTotal + (product.sellingPrice * increment));
                 } else {
-                    newQuantity = Math.max(1, item.quantity - 1);
-                    if (newQuantity < item.quantity) {
-                        setTotalAmount(prevTotal => prevTotal - product.sellingPrice);
+                    const minUnits = product.unitType === 'WEIGHT' ? 0.01 : 1; // Changed to 0.01 for WEIGHT
+                    newUnits = Math.max(minUnits, item.units - increment);
+                    if (newUnits < item.units) {
+                        setTotalAmount(prevTotal => prevTotal - (product.sellingPrice * increment));
                     } else {
-                        setErrorMessage(`Cannot decrease quantity. Quantity is already at the minimum (1) for ${product.productName}.`);
+                        setErrorMessage(`Cannot decrease units. Units are already at the minimum (${minUnits}) for ${product.productName}.`);
                         setOpenSnackbar(true);
                         return;
                     }
                 }
 
+                // Validate units for DISCRETE products
+                if (product.unitType === 'DISCRETE' && newUnits % 1 !== 0) {
+                    setErrorMessage('Units for DISCRETE products must be an integer (e.g., 1, 2, 10).');
+                    setOpenSnackbar(true);
+                    return;
+                }
+
                 setCart(cart.map(cartItem =>
                     cartItem.productId === selectedItem
-                        ? { ...cartItem, quantity: newQuantity }
+                        ? { ...cartItem, units: newUnits }
                         : cartItem
                 ));
             }
@@ -367,15 +379,21 @@ const PosTerminal = () => {
     const addOrUpdateCartItem = (productId) => {
         const product = products.find(p => p.productId === productId);
         console.log('addOrUpdateCartItem called with productId:', productId, 'Product:', product);
-        if (product && product.quantity > 0) {
+        if (product && product.units > 0) {
             const existingItem = cart.find(item => item.productId === productId);
             if (existingItem) {
-                setErrorMessage(`${product.productName} is already in the cart. Use +/- keys to adjust quantity after selecting it.`);
+                setErrorMessage(`${product.productName} is already in the cart. Use +/- keys to adjust units after selecting it.`);
                 setOpenSnackbar(true);
                 console.log('Duplicate item detected, error set.');
             } else {
-                setCart([...cart, { ...product, quantity: 1 }]);
-                setTotalAmount(totalAmount + product.sellingPrice);
+                const initialUnits = product.unitType === 'WEIGHT' ? 0.25 : 1; // Keep initial units at 0.25 for WEIGHT
+                if (initialUnits > product.units) {
+                    setErrorMessage(`Cannot add ${product.productName}. Only ${product.units} units in stock.`);
+                    setOpenSnackbar(true);
+                    return;
+                }
+                setCart([...cart, { ...product, units: initialUnits }]);
+                setTotalAmount(totalAmount + (product.sellingPrice * initialUnits));
                 setLastAddedItem(productId);
                 setSelectedItem(productId);
                 setSuccessMessage('Product added successfully.');
@@ -416,7 +434,7 @@ const PosTerminal = () => {
     const removeFromCart = (productId) => {
         const item = cart.find(i => i.productId === productId);
         setCart(cart.filter(i => i.productId !== productId));
-        setTotalAmount(totalAmount - (item.sellingPrice * item.quantity));
+        setTotalAmount(totalAmount - (item.sellingPrice * item.units));
         if (selectedItem === productId) setSelectedItem(null);
     };
 
@@ -521,7 +539,7 @@ const PosTerminal = () => {
                 orderDate: currentDate.toISOString(),
                 items: cart.map(item => ({
                     productId: item.productId,
-                    quantity: item.quantity,
+                    units: item.units,
                     sellingPrice: item.sellingPrice,
                 })),
                 creditCustomerDetails: paymentMethod === 'Credit Purpose' ? creditDetails : null,
@@ -611,7 +629,7 @@ const PosTerminal = () => {
                     .details {
                         display: flex;
                         justify-content: space-between;
-                        font-size: 4px; /* Further reduced font size */
+                        font-size: 4px;
                         margin: 5px 0;
                         text-align: left;
                     }
@@ -671,7 +689,7 @@ const PosTerminal = () => {
                         <thead>
                             <tr>
                                 <th>Item</th>
-                                <th>Qty</th>
+                                <th>Units</th>
                                 <th>Price</th>
                                 <th>Subtotal</th>
                             </tr>
@@ -680,7 +698,7 @@ const PosTerminal = () => {
                             ${receipt.items.map(item => `
                                 <tr>
                                     <td>${item.productName}</td>
-                                    <td>${item.quantity}</td>
+                                    <td>${item.units}</td>
                                     <td>Rs.${item.sellingPrice.toFixed(2)}</td>
                                     <td>Rs.${item.subtotal.toFixed(2)}</td>
                                 </tr>
@@ -740,6 +758,65 @@ const PosTerminal = () => {
     const handleCloseReceiptDialog = () => {
         setOpenReceiptDialog(false);
         setReceipt(null);
+    };
+
+    const handleEditUnits = (productId) => {
+        const item = cart.find(i => i.productId === productId);
+        if (item && item.unitType === 'WEIGHT') {
+            setEditUnitItem(productId);
+            setEditUnitValue(item.units.toString());
+        } else {
+            setErrorMessage('Manual unit editing is only available for WEIGHT type products.');
+            setOpenSnackbar(true);
+        }
+    };
+
+    const handleSaveUnits = () => {
+        if (!editUnitItem) return;
+
+        const item = cart.find(i => i.productId === editUnitItem);
+        const product = products.find(p => p.productId === editUnitItem);
+        if (!item || !product) return;
+
+        let newUnits = parseFloat(editUnitValue);
+        if (isNaN(newUnits)) {
+            setErrorMessage('Please enter a valid number.');
+            setOpenSnackbar(true);
+            return;
+        }
+        if (newUnits < 0.01) { // Changed to 0.01
+            setErrorMessage('Units must be at least 0.01 for WEIGHT products.');
+            setOpenSnackbar(true);
+            return;
+        }
+        if (newUnits > product.units) {
+            setErrorMessage(`Units cannot exceed ${product.units} for ${product.productName}.`);
+            setOpenSnackbar(true);
+            return;
+        }
+
+        const unitDiff = newUnits - item.units;
+        setCart(cart.map(cartItem =>
+            cartItem.productId === editUnitItem
+                ? { ...cartItem, units: newUnits }
+                : cartItem
+        ));
+        setTotalAmount(prevTotal => prevTotal + (product.sellingPrice * unitDiff));
+        setEditUnitItem(null);
+        setEditUnitValue('');
+    };
+
+    const handleCancelEdit = () => {
+        setEditUnitItem(null);
+        setEditUnitValue('');
+    };
+
+    const handleUnitInputChange = (e) => {
+        const value = e.target.value;
+        // Allow only numbers and a single decimal point
+        if (/^\d*\.?\d*$/.test(value) && value.indexOf('.') === value.lastIndexOf('.')) {
+            setEditUnitValue(value);
+        }
     };
 
     return (
@@ -822,7 +899,7 @@ const PosTerminal = () => {
                                             Product Name
                                         </TableCell>
                                         <TableCell sx={{ backgroundColor: '#0478C0', color: '#fff', fontWeight: 'bold' }}>
-                                            Quantity
+                                            Units
                                         </TableCell>
                                         <TableCell sx={{ backgroundColor: '#0478C0', color: '#fff', fontWeight: 'bold' }}>
                                             Price
@@ -847,9 +924,33 @@ const PosTerminal = () => {
                                             onClick={() => handleSelectItem(item.productId)}
                                         >
                                             <TableCell>{item.productName}</TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>
+                                                {editUnitItem === item.productId ? (
+                                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                                        <TextField
+                                                            value={editUnitValue}
+                                                            onChange={handleUnitInputChange}
+                                                            onKeyPress={(e) => {
+                                                                if (e.key === 'Enter') handleSaveUnits();
+                                                            }}
+                                                            size="small"
+                                                            sx={{ width: '60px' }}
+                                                        />
+                                                        <Button onClick={handleSaveUnits} size="small" variant="contained" color="primary">
+                                                            Save
+                                                        </Button>
+                                                        <Button onClick={handleCancelEdit} size="small" variant="outlined" color="secondary">
+                                                            Cancel
+                                                        </Button>
+                                                    </Box>
+                                                ) : (
+                                                    <span onClick={() => handleEditUnits(item.productId)} style={{ cursor: 'pointer' }}>
+                                                        {item.units}
+                                                    </span>
+                                                )}
+                                            </TableCell>
                                             <TableCell>Rs.{item.sellingPrice.toFixed(2)}</TableCell>
-                                            <TableCell>Rs.{(item.quantity * item.sellingPrice).toFixed(2)}</TableCell>
+                                            <TableCell>Rs.{(item.units * item.sellingPrice).toFixed(2)}</TableCell>
                                             <TableCell>
                                                 <Button
                                                     variant="outlined"
@@ -1107,7 +1208,7 @@ const PosTerminal = () => {
                                 <TableHead>
                                     <TableRow>
                                         <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Item</TableCell>
-                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Qty</TableCell>
+                                        <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Units</TableCell>
                                         <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Price</TableCell>
                                         <TableCell sx={{ fontSize: '10px', p: 0.5, borderBottom: '1px solid #000' }}>Subtotal</TableCell>
                                     </TableRow>
@@ -1116,7 +1217,7 @@ const PosTerminal = () => {
                                     {receipt.items.map((item, index) => (
                                         <TableRow key={index}>
                                             <TableCell sx={{ fontSize: '10px', p: 0.5 }}>{item.productName}</TableCell>
-                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>{item.quantity}</TableCell>
+                                            <TableCell sx={{ fontSize: '10px', p: 0.5 }}>{item.units}</TableCell>
                                             <TableCell sx={{ fontSize: '10px', p: 0.5 }}>Rs.{item.sellingPrice.toFixed(2)}</TableCell>
                                             <TableCell sx={{ fontSize: '10px', p: 0.5 }}>Rs.{item.subtotal.toFixed(2)}</TableCell>
                                         </TableRow>

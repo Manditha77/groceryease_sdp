@@ -23,6 +23,10 @@ import {
     FormControlLabel,
     Checkbox,
     IconButton,
+    MenuItem,
+    Select,
+    InputLabel,
+    FormControl,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -42,36 +46,42 @@ const Inventory = () => {
     const filterOptions = [
         { label: "Product Name", value: "productName" },
         { label: "Category", value: "categoryName" },
-        { label: "Quantity", value: "quantity" },
+        { label: "Units", value: "units" },
         { label: "Buying Price", value: "buyingPrice" },
         { label: "Selling Price", value: "sellingPrice" },
         { label: "Supplier", value: "supplierCompanyName" },
+        { label: "Expire Date", value: "expireDate" },
     ];
 
     const [restockDialogOpen, setRestockDialogOpen] = useState(false);
     const [updateBatchDialogOpen, setUpdateBatchDialogOpen] = useState(false);
     const [restockConfirmDialogOpen, setRestockConfirmDialogOpen] = useState(false);
     const [updateBatchConfirmDialogOpen, setUpdateBatchConfirmDialogOpen] = useState(false);
+    const [deleteBatchDialogOpen, setDeleteBatchDialogOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [batches, setBatches] = useState([]);
     const [selectedBatch, setSelectedBatch] = useState(null);
     const [newStock, setNewStock] = useState("");
     const [newBuyingPrice, setNewBuyingPrice] = useState("");
     const [newSellingPrice, setNewSellingPrice] = useState("");
-    const [updatedQuantity, setUpdatedQuantity] = useState("");
+    const [newExpireDate, setNewExpireDate] = useState("");
+    const [updatedUnits, setUpdatedUnits] = useState("");
     const [updatedBuyingPrice, setUpdatedBuyingPrice] = useState("");
     const [updatedSellingPrice, setUpdatedSellingPrice] = useState("");
+    const [updatedExpireDate, setUpdatedExpireDate] = useState("");
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
     const [formData, setFormData] = useState({
         productName: "",
         categoryName: "",
-        quantity: "",
+        units: "",
         buyingPrice: "",
         sellingPrice: "",
         supplierCompanyName: "",
         image: defaultImage,
         barcode: "",
+        unitType: "DISCRETE",
+        expireDate: "",
     });
     const [useBarcode, setUseBarcode] = useState(true);
     const [formDataCategory, setFormDataCategory] = useState({
@@ -121,8 +131,10 @@ const Inventory = () => {
 
     const filteredProducts = products.filter((product) => {
         const filterValue = product[filterType]?.toString().toLowerCase() || "";
-        if (["quantity", "buyingPrice", "sellingPrice"].includes(filterType)) {
+        if (["units", "buyingPrice", "sellingPrice"].includes(filterType)) {
             return product[filterType]?.toString() === searchValue;
+        } else if (filterType === "expireDate") {
+            return product.expireDate?.toString().split("T")[0].toLowerCase().includes(searchValue.toLowerCase()) || "";
         }
         return filterValue.includes(searchValue.toLowerCase());
     });
@@ -151,18 +163,33 @@ const Inventory = () => {
         setNewStock("");
         setNewBuyingPrice("");
         setNewSellingPrice("");
+        setNewExpireDate("");
     };
 
     const handleOpenRestockConfirmDialog = () => {
-        if (!selectedProduct || !newStock || isNaN(newStock) || newStock <= 0) {
+        if (!selectedProduct || !newStock || isNaN(newStock) || Number(newStock) <= 0) {
             setSnackbarErrorMessage("Please select a product and enter a valid stock quantity");
             setSnackbarErrorOpen(true);
             handleCloseRestockDialog();
             return;
         }
 
-        if (!selectedBatch && (!newBuyingPrice || !newSellingPrice || newBuyingPrice <= 0 || newSellingPrice <= 0)) {
+        if (selectedProduct?.unitType === "DISCRETE" && Number(newStock) % 1 !== 0) {
+            setSnackbarErrorMessage("Units for DISCRETE products must be an integer (e.g., 1, 2, 10)");
+            setSnackbarErrorOpen(true);
+            handleCloseRestockDialog();
+            return;
+        }
+
+        if (!selectedBatch && (!newBuyingPrice || !newSellingPrice || Number(newBuyingPrice) <= 0 || Number(newSellingPrice) <= 0)) {
             setSnackbarErrorMessage("Please enter valid buying and selling prices for a new batch");
+            setSnackbarErrorOpen(true);
+            handleCloseRestockDialog();
+            return;
+        }
+
+        if (!selectedBatch && !newExpireDate) {
+            setSnackbarErrorMessage("Please enter a valid expiration date for a new batch");
             setSnackbarErrorOpen(true);
             handleCloseRestockDialog();
             return;
@@ -178,12 +205,14 @@ const Inventory = () => {
 
     const handleRestock = async () => {
         try {
+            const formattedExpireDate = newExpireDate ? `${newExpireDate}T00:00:00` : "";
             await productServices.restockProduct(
                 selectedProduct.productId,
-                parseInt(newStock, 10),
-                selectedBatch ? selectedBatch.buyingPrice : parseFloat(newBuyingPrice),
-                selectedBatch ? selectedBatch.sellingPrice : parseFloat(newSellingPrice),
-                selectedBatch ? selectedBatch.batchId : null
+                Number(newStock),
+                selectedBatch ? selectedBatch.buyingPrice : Number(newBuyingPrice),
+                selectedBatch ? selectedBatch.sellingPrice : Number(newSellingPrice),
+                selectedBatch ? selectedBatch.batchId : null,
+                formattedExpireDate
             );
 
             setSnackbarMessage("Stock updated successfully");
@@ -219,9 +248,10 @@ const Inventory = () => {
         setSelectedProduct(null);
         setSelectedBatch(null);
         setBatches([]);
-        setUpdatedQuantity("");
+        setUpdatedUnits("");
         setUpdatedBuyingPrice("");
         setUpdatedSellingPrice("");
+        setUpdatedExpireDate("");
     };
 
     const handleOpenUpdateBatchConfirmDialog = () => {
@@ -232,22 +262,36 @@ const Inventory = () => {
             return;
         }
 
-        if (!updatedQuantity || isNaN(updatedQuantity) || updatedQuantity < 0) {
-            setSnackbarErrorMessage("Please enter a valid quantity (non-negative)");
+        if (!updatedUnits || isNaN(updatedUnits) || Number(updatedUnits) < 0) {
+            setSnackbarErrorMessage("Please enter a valid units value (non-negative)");
             setSnackbarErrorOpen(true);
             handleCloseUpdateBatchDialog();
             return;
         }
 
-        if (!updatedBuyingPrice || !updatedSellingPrice || updatedBuyingPrice <= 0 || updatedSellingPrice <= 0) {
+        if (selectedProduct.unitType === "DISCRETE" && Number(updatedUnits) % 1 !== 0) {
+            setSnackbarErrorMessage("Units for DISCRETE products must be an integer (e.g., 1, 2, 10)");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        if (!updatedBuyingPrice || !updatedSellingPrice || Number(updatedBuyingPrice) <= 0 || Number(updatedSellingPrice) <= 0) {
             setSnackbarErrorMessage("Please enter valid buying and selling prices (greater than zero)");
             setSnackbarErrorOpen(true);
             handleCloseUpdateBatchDialog();
             return;
         }
 
-        if (parseFloat(updatedBuyingPrice) > parseFloat(updatedSellingPrice)) {
+        if (Number(updatedBuyingPrice) > Number(updatedSellingPrice)) {
             setSnackbarErrorMessage("Buying price must be less than or equal to selling price");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+
+        if (!updatedExpireDate) {
+            setSnackbarErrorMessage("Please enter a valid expiration date");
             setSnackbarErrorOpen(true);
             handleCloseUpdateBatchDialog();
             return;
@@ -263,11 +307,13 @@ const Inventory = () => {
 
     const handleUpdateBatch = async () => {
         try {
+            const formattedExpireDate = updatedExpireDate ? `${updatedExpireDate}T00:00:00` : "";
             await productServices.updateBatch(
                 selectedBatch.batchId,
-                parseInt(updatedQuantity, 10),
-                parseFloat(updatedBuyingPrice),
-                parseFloat(updatedSellingPrice)
+                Number(updatedUnits),
+                Number(updatedBuyingPrice),
+                Number(updatedSellingPrice),
+                formattedExpireDate
             );
 
             setSnackbarMessage("Batch updated successfully");
@@ -279,6 +325,37 @@ const Inventory = () => {
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseUpdateBatchConfirmDialog();
+        }
+    };
+
+    const handleOpenDeleteBatchDialog = () => {
+        if (!selectedProduct || !selectedBatch) {
+            setSnackbarErrorMessage("Please select a product and batch to delete");
+            setSnackbarErrorOpen(true);
+            handleCloseUpdateBatchDialog();
+            return;
+        }
+        setDeleteBatchDialogOpen(true);
+    };
+
+    const handleCloseDeleteBatchDialog = () => {
+        setDeleteBatchDialogOpen(false);
+    };
+
+    const handleConfirmDeleteBatch = async () => {
+        try {
+            await productServices.deleteBatch(selectedBatch.batchId);
+            setBatches(batches.filter((batch) => batch.batchId !== selectedBatch.batchId));
+            setSnackbarMessage("Batch deleted successfully");
+            setSnackbarOpen(true);
+            fetchProducts();
+        } catch (error) {
+            console.error("Error deleting batch:", error);
+            setSnackbarErrorMessage("Failed to delete batch: " + (error.response?.data?.message || error.message));
+            setSnackbarErrorOpen(true);
+        } finally {
+            handleCloseDeleteBatchDialog();
+            handleCloseUpdateBatchDialog();
         }
     };
 
@@ -348,6 +425,14 @@ const Inventory = () => {
             }
         };
     }, [scannerDialogOpen]);
+
+    const handleCategoryChange = (event, newValue) => {
+        setFormData({ ...formData, categoryName: newValue || "" });
+    };
+
+    const handleSupplierChange = (event, newValue) => {
+        setFormData({ ...formData, supplierCompanyName: newValue || "" });
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -444,15 +529,27 @@ const Inventory = () => {
     };
 
     const handleConfirmRegisterProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
+        const requiredFields = {
+            productName: formData.productName?.trim(),
+            categoryName: formData.categoryName?.trim(),
+            supplierCompanyName: formData.supplierCompanyName?.trim(),
+        };
+
+        if (!requiredFields.productName || !requiredFields.categoryName || !requiredFields.supplierCompanyName) {
             setSnackbarErrorMessage("Please fill in all required fields");
             setSnackbarErrorOpen(true);
             return;
         }
 
         if (!isEditMode) {
-            if (!formData.quantity || Number(formData.quantity) <= 0) {
-                setSnackbarErrorMessage("Quantity must be greater than zero");
+            if (!formData.units || Number(formData.units) <= 0) {
+                setSnackbarErrorMessage("Units must be greater than zero");
+                setSnackbarErrorOpen(true);
+                return;
+            }
+
+            if (formData.unitType === "DISCRETE" && Number(formData.units) % 1 !== 0) {
+                setSnackbarErrorMessage("Units for DISCRETE products must be an integer (e.g., 1, 2, 10)");
                 setSnackbarErrorOpen(true);
                 return;
             }
@@ -473,16 +570,22 @@ const Inventory = () => {
                 setSnackbarErrorOpen(true);
                 return;
             }
+
+            if (!formData.expireDate) {
+                setSnackbarErrorMessage("Please enter a valid expiration date");
+                setSnackbarErrorOpen(true);
+                return;
+            }
         }
 
-        const categoryExists = categories.some((category) => category.categoryName === formData.categoryName);
+        const categoryExists = categories.some((category) => category.categoryName === requiredFields.categoryName);
         if (!categoryExists) {
             setSnackbarErrorMessage("Category does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const supplierExists = suppliers.some((supplier) => supplier.companyName === formData.supplierCompanyName);
+        const supplierExists = suppliers.some((supplier) => supplier.companyName === requiredFields.supplierCompanyName);
         if (!supplierExists) {
             setSnackbarErrorMessage("Supplier does not exist");
             setSnackbarErrorOpen(true);
@@ -491,29 +594,32 @@ const Inventory = () => {
 
         const duplicate = products.find(
             (product) =>
-                product.productName.replace(/\s*\([^)]+\)\s*$/, "").trim() === formData.productName &&
-                product.supplierCompanyName === formData.supplierCompanyName &&
+                product.productName.replace(/\s*\([^)]+\)\s*$/, "").trim() === requiredFields.productName &&
+                product.supplierCompanyName === requiredFields.supplierCompanyName &&
                 (product.barcode == null || product.barcode === formData.barcode) &&
                 (!isEditMode || product.productId !== selectedProductId)
         );
         if (duplicate && !isEditMode) {
             setSnackbarErrorMessage(
-                "Product with name '" + formData.productName + "' from supplier '" + formData.supplierCompanyName + "' already exists"
+                "Product with name '" + requiredFields.productName + "' from supplier '" + requiredFields.supplierCompanyName + "' already exists"
             );
             setSnackbarErrorOpen(true);
             return;
         }
 
         try {
+            const formattedExpireDate = formData.expireDate ? `${formData.expireDate}T00:00:00` : "";
             const productData = {
-                productName: formData.productName,
-                categoryName: formData.categoryName,
-                quantity: Number(formData.quantity) || 0,
+                productName: requiredFields.productName,
+                categoryName: requiredFields.categoryName,
+                units: Number(formData.units) || 0,
                 buyingPrice: Number(formData.buyingPrice) || 0.0,
                 sellingPrice: Number(formData.sellingPrice) || 0.0,
-                supplierCompanyName: formData.supplierCompanyName,
+                supplierCompanyName: requiredFields.supplierCompanyName,
                 barcode: useBarcode ? formData.barcode : "",
                 image: formData.image,
+                unitType: formData.unitType,
+                expireDate: formattedExpireDate,
             };
 
             const response = await productServices.addProduct(productData);
@@ -523,12 +629,14 @@ const Inventory = () => {
             setFormData({
                 productName: "",
                 categoryName: "",
-                quantity: "",
+                units: "",
                 buyingPrice: "",
                 sellingPrice: "",
                 supplierCompanyName: "",
                 image: defaultImage,
                 barcode: "",
+                unitType: "DISCRETE",
+                expireDate: "",
             });
             setUseBarcode(true);
             setIsManualBarcode(false);
@@ -549,12 +657,14 @@ const Inventory = () => {
         setFormData({
             productName: rawProductName,
             categoryName: product.categoryName,
-            quantity: 0,
-            buyingPrice: product.buyingPrice,
-            sellingPrice: product.sellingPrice,
             supplierCompanyName: product.supplierCompanyName,
+            units: "",
+            buyingPrice: "",
+            sellingPrice: "",
             image: product.base64Image ? `data:image/jpeg;base64,${product.base64Image}` : defaultImage,
             barcode: product.barcode || "",
+            unitType: product.unitType || "DISCRETE",
+            expireDate: "",
         });
         setUseBarcode(!!product.barcode);
         setSelectedProductId(productId);
@@ -586,24 +696,42 @@ const Inventory = () => {
         setUpdateDialogOpen(false);
         setSelectedProductId(null);
         setIsEditMode(false);
+        setFormData({
+            productName: "",
+            categoryName: "",
+            units: "",
+            buyingPrice: "",
+            sellingPrice: "",
+            supplierCompanyName: "",
+            image: defaultImage,
+            barcode: "",
+            unitType: "DISCRETE",
+            expireDate: "",
+        });
         setIsManualBarcode(false);
     };
 
     const handleConfirmUpdateProduct = async () => {
-        if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
+        const requiredFields = {
+            productName: formData.productName?.trim(),
+            categoryName: formData.categoryName?.trim(),
+            supplierCompanyName: formData.supplierCompanyName?.trim(),
+        };
+
+        if (!requiredFields.productName || !requiredFields.categoryName || !requiredFields.supplierCompanyName) {
             setSnackbarErrorMessage("Please fill in all required fields");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const categoryExists = categories.some((category) => category.categoryName === formData.categoryName);
+        const categoryExists = categories.some((category) => category.categoryName === requiredFields.categoryName);
         if (!categoryExists) {
             setSnackbarErrorMessage("Category does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const supplierExists = suppliers.some((supplier) => supplier.companyName === formData.supplierCompanyName);
+        const supplierExists = suppliers.some((supplier) => supplier.companyName === requiredFields.supplierCompanyName);
         if (!supplierExists) {
             setSnackbarErrorMessage("Supplier does not exist");
             setSnackbarErrorOpen(true);
@@ -612,14 +740,16 @@ const Inventory = () => {
 
         try {
             const productData = {
-                productName: formData.productName,
-                categoryName: formData.categoryName,
-                quantity: Number(formData.quantity) || 0,
-                buyingPrice: Number(formData.buyingPrice) || 0.0,
-                sellingPrice: Number(formData.sellingPrice) || 0.0,
-                supplierCompanyName: formData.supplierCompanyName,
-                barcode: useBarcode ? formData.barcode : null,
+                productName: requiredFields.productName,
+                categoryName: requiredFields.categoryName,
+                supplierCompanyName: requiredFields.supplierCompanyName,
+                units: products.find((p) => p.productId === selectedProductId).units,
+                buyingPrice: products.find((p) => p.productId === selectedProductId).buyingPrice,
+                sellingPrice: products.find((p) => p.productId === selectedProductId).sellingPrice,
+                barcode: products.find((p) => p.productId === selectedProductId).barcode,
+                unitType: products.find((p) => p.productId === selectedProductId).unitType,
                 image: formData.image,
+                expireDate: products.find((p) => p.productId === selectedProductId).expireDate,
             };
 
             const response = await productServices.updateProduct(selectedProductId, productData);
@@ -630,12 +760,14 @@ const Inventory = () => {
             setFormData({
                 productName: "",
                 categoryName: "",
-                quantity: "",
+                units: "",
                 buyingPrice: "",
                 sellingPrice: "",
                 supplierCompanyName: "",
                 image: defaultImage,
                 barcode: "",
+                unitType: "DISCRETE",
+                expireDate: "",
             });
             setUseBarcode(true);
             setIsManualBarcode(false);
@@ -666,7 +798,7 @@ const Inventory = () => {
             setCategories(updatedCategories);
             setSnackbarMessage("Category deleted successfully");
             setSnackbarOpen(true);
-            fetchProducts(); // Refresh products to reflect updated category names
+            fetchProducts();
         } catch (error) {
             console.error("Error deleting category:", error);
             setSnackbarErrorMessage("Failed to delete category");
@@ -715,7 +847,7 @@ const Inventory = () => {
             );
             setSnackbarMessage("Category updated successfully");
             setSnackbarOpen(true);
-            fetchProducts(); // Refresh products to reflect updated category names
+            fetchProducts();
         } catch (error) {
             console.error("Error updating category:", error);
             setSnackbarErrorMessage("Failed to update category");
@@ -765,6 +897,8 @@ const Inventory = () => {
             handleCloseCategoryRegisterDialog();
         }
     };
+
+    const currentDate = new Date().toISOString().split("T")[0]; // Current date: 2025-05-20
 
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
@@ -826,9 +960,9 @@ const Inventory = () => {
                             renderInput={(params) => <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <Autocomplete
-                            options={[{ batchId: null, label: "Create New Batch" }, ...batches.map(batch => ({
+                            options={[{ batchId: null, label: "Create New Batch" }, ...batches.map((batch) => ({
                                 batchId: batch.batchId,
-                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`
+                                label: `Batch #${batch.batchId} (Units: ${batch.units}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice}, Expire: ${batch.expireDate ? batch.expireDate.split("T")[0] : "N/A"})`
                             }))]}
                             getOptionLabel={(option) => option.label}
                             onChange={(event, newValue) => setSelectedBatch(newValue?.batchId ? batches.find((b) => b.batchId === newValue.batchId) : null)}
@@ -836,11 +970,12 @@ const Inventory = () => {
                         />
                         <TextField
                             fullWidth
-                            label="New Stock Quantity"
+                            label="New Stock Units"
                             type="number"
                             value={newStock}
                             onChange={(e) => setNewStock(e.target.value)}
                             sx={{ marginTop: 2 }}
+                            inputProps={{ step: selectedProduct?.unitType === "WEIGHT" ? "0.1" : "1" }}
                         />
                         {!selectedBatch && (
                             <>
@@ -859,6 +994,16 @@ const Inventory = () => {
                                     value={newSellingPrice}
                                     onChange={(e) => setNewSellingPrice(e.target.value)}
                                     sx={{ marginTop: 2 }}
+                                />
+                                <TextField
+                                    fullWidth
+                                    label="Expire Date (YYYY-MM-DD)"
+                                    type="date"
+                                    value={newExpireDate}
+                                    onChange={(e) => setNewExpireDate(e.target.value)}
+                                    sx={{ marginTop: 2 }}
+                                    InputLabelProps={{ shrink: true }}
+                                    inputProps={{ min: currentDate }} // Lock to future dates
                                 />
                             </>
                         )}
@@ -898,32 +1043,35 @@ const Inventory = () => {
                         <Autocomplete
                             options={batches.map((batch) => ({
                                 batchId: batch.batchId,
-                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`,
+                                label: `Batch #${batch.batchId} (Units: ${batch.units}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice}, Expire: ${batch.expireDate ? batch.expireDate.split("T")[0] : "N/A"})`,
                             }))}
                             getOptionLabel={(option) => option.label}
                             onChange={(event, newValue) => {
                                 const batch = newValue?.batchId ? batches.find((b) => b.batchId === newValue.batchId) : null;
                                 setSelectedBatch(batch);
                                 if (batch) {
-                                    setUpdatedQuantity(batch.quantity.toString());
+                                    setUpdatedUnits(batch.units.toString());
                                     setUpdatedBuyingPrice(batch.buyingPrice.toString());
                                     setUpdatedSellingPrice(batch.sellingPrice.toString());
+                                    setUpdatedExpireDate(batch.expireDate ? batch.expireDate.split("T")[0] : "");
                                 } else {
-                                    setUpdatedQuantity("");
+                                    setUpdatedUnits("");
                                     setUpdatedBuyingPrice("");
                                     setUpdatedSellingPrice("");
+                                    setUpdatedExpireDate("");
                                 }
                             }}
                             renderInput={(params) => <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <TextField
                             fullWidth
-                            label="Updated Quantity"
+                            label="Updated Units"
                             type="number"
-                            value={updatedQuantity}
-                            onChange={(e) => setUpdatedQuantity(e.target.value)}
+                            value={updatedUnits}
+                            onChange={(e) => setUpdatedUnits(e.target.value)}
                             sx={{ marginTop: 2 }}
                             disabled={!selectedBatch}
+                            inputProps={{ step: selectedProduct?.unitType === "WEIGHT" ? "0.1" : "1" }}
                         />
                         <TextField
                             fullWidth
@@ -943,9 +1091,23 @@ const Inventory = () => {
                             sx={{ marginTop: 2 }}
                             disabled={!selectedBatch}
                         />
+                        <TextField
+                            fullWidth
+                            label="Updated Expire Date (YYYY-MM-DD)"
+                            type="date"
+                            value={updatedExpireDate}
+                            onChange={(e) => setUpdatedExpireDate(e.target.value)}
+                            sx={{ marginTop: 2 }}
+                            disabled={!selectedBatch}
+                            InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: currentDate }} // Lock to future dates
+                        />
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={handleCloseUpdateBatchDialog}>Cancel</Button>
+                        <Button onClick={handleOpenDeleteBatchDialog} variant="contained" color="error" disabled={!selectedBatch}>
+                            Delete Batch
+                        </Button>
                         <Button onClick={handleOpenUpdateBatchConfirmDialog} variant="contained" disabled={!selectedBatch}>
                             Update Batch
                         </Button>
@@ -961,6 +1123,18 @@ const Inventory = () => {
                         <Button onClick={handleUpdateBatch}>Confirm</Button>
                     </DialogActions>
                 </Dialog>
+                <Dialog open={deleteBatchDialogOpen} onClose={handleCloseDeleteBatchDialog}>
+                    <DialogTitle>Confirm Delete Batch</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>Are you sure you want to delete this batch? This action cannot be undone.</DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDeleteBatchDialog}>Cancel</Button>
+                        <Button onClick={handleConfirmDeleteBatch} variant="contained" color="error">
+                            Delete
+                        </Button>
+                    </DialogActions>
+                </Dialog>
                 <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
                     <Table stickyHeader>
                         <TableHead>
@@ -969,9 +1143,11 @@ const Inventory = () => {
                                 <TableCell>Image</TableCell>
                                 <TableCell>Product Name</TableCell>
                                 <TableCell>Category</TableCell>
-                                <TableCell>Quantity</TableCell>
+                                <TableCell>Units</TableCell>
+                                <TableCell>Unit Type</TableCell>
                                 <TableCell>Buying Price</TableCell>
                                 <TableCell>Selling Price</TableCell>
+                                <TableCell>Expire Date</TableCell>
                                 <TableCell>Supplier</TableCell>
                                 <TableCell>Barcode</TableCell>
                                 <TableCell>Actions</TableCell>
@@ -1003,9 +1179,11 @@ const Inventory = () => {
                                     </TableCell>
                                     <TableCell>{product.productName}</TableCell>
                                     <TableCell>{product.categoryName}</TableCell>
-                                    <TableCell>{product.quantity}</TableCell>
+                                    <TableCell>{product.units}</TableCell>
+                                    <TableCell>{product.unitType}</TableCell>
                                     <TableCell>{product.buyingPrice}</TableCell>
                                     <TableCell>{product.sellingPrice}</TableCell>
+                                    <TableCell>{product.expireDate ? product.expireDate.split("T")[0] : "N/A"}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
                                     <TableCell>{product.barcode || "#N/A"}</TableCell>
                                     <TableCell>
@@ -1082,29 +1260,44 @@ const Inventory = () => {
                                         value={formData.productName}
                                         onChange={handleChange}
                                         variant="outlined"
+                                        disabled={isEditMode && !formData.productName}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
                                     <Autocomplete
                                         options={categories.map((category) => category.categoryName)}
-                                        value={formData.categoryName}
-                                        onChange={(event, newValue) => {
-                                            setFormData({ ...formData, categoryName: newValue });
-                                        }}
+                                        value={formData.categoryName || ""}
+                                        onChange={handleCategoryChange}
                                         renderInput={(params) => <TextField {...params} label="Category *" variant="outlined" />}
+                                        disabled={isEditMode && !formData.categoryName}
                                     />
                                 </Grid>
                                 {!isEditMode && (
                                     <>
                                         <Grid item xs={12}>
+                                            <FormControl fullWidth variant="outlined">
+                                                <InputLabel>Unit Type *</InputLabel>
+                                                <Select
+                                                    label="Unit Type *"
+                                                    name="unitType"
+                                                    value={formData.unitType}
+                                                    onChange={handleChange}
+                                                >
+                                                    <MenuItem value="DISCRETE">Discrete (e.g., 1, 2, 10 units)</MenuItem>
+                                                    <MenuItem value="WEIGHT">Weight (e.g., 1.5 kg, 2.75 kg)</MenuItem>
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Initial Quantity *"
-                                                name="quantity"
+                                                label="Initial Units *"
+                                                name="units"
                                                 type="number"
-                                                value={formData.quantity}
+                                                value={formData.units}
                                                 onChange={handleChange}
                                                 variant="outlined"
+                                                inputProps={{ step: formData.unitType === "WEIGHT" ? "0.1" : "1" }}
                                             />
                                         </Grid>
                                         <Grid item xs={12}>
@@ -1129,18 +1322,40 @@ const Inventory = () => {
                                                 variant="outlined"
                                             />
                                         </Grid>
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                fullWidth
+                                                label="Expire Date (YYYY-MM-DD) *"
+                                                name="expireDate"
+                                                type="date"
+                                                value={formData.expireDate}
+                                                onChange={handleChange}
+                                                variant="outlined"
+                                                InputLabelProps={{ shrink: true }}
+                                                inputProps={{ min: currentDate }} // Lock to future dates
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <Autocomplete
+                                                options={suppliers.map((supplier) => supplier.companyName)}
+                                                value={formData.supplierCompanyName || ""}
+                                                onChange={handleSupplierChange}
+                                                renderInput={(params) => <TextField {...params} label="Supplier *" variant="outlined" />}
+                                            />
+                                        </Grid>
                                     </>
                                 )}
-                                <Grid item xs={12}>
-                                    <Autocomplete
-                                        options={suppliers.map((supplier) => supplier.companyName)}
-                                        value={formData.supplierCompanyName}
-                                        onChange={(event, newValue) => {
-                                            setFormData({ ...formData, supplierCompanyName: newValue });
-                                        }}
-                                        renderInput={(params) => <TextField {...params} label="Supplier *" variant="outlined" />}
-                                    />
-                                </Grid>
+                                {isEditMode && (
+                                    <Grid item xs={12}>
+                                        <Autocomplete
+                                            options={suppliers.map((supplier) => supplier.companyName)}
+                                            value={formData.supplierCompanyName || ""}
+                                            onChange={handleSupplierChange}
+                                            renderInput={(params) => <TextField {...params} label="Supplier *" variant="outlined" />}
+                                            disabled={isEditMode && !formData.supplierCompanyName}
+                                        />
+                                    </Grid>
+                                )}
                                 <Grid item xs={12}>
                                     <FormControlLabel
                                         control={
@@ -1154,6 +1369,7 @@ const Inventory = () => {
                                                     }
                                                 }}
                                                 color="primary"
+                                                disabled={isEditMode}
                                             />
                                         }
                                         label="Use Barcode (untick if barcode is not available)"
@@ -1167,7 +1383,7 @@ const Inventory = () => {
                                                 value={formData.barcode}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                disabled={!useBarcode}
+                                                disabled={!useBarcode || isEditMode}
                                             />
                                         </Grid>
                                         <Grid item xs={3}>
@@ -1175,7 +1391,7 @@ const Inventory = () => {
                                                 variant="contained"
                                                 onClick={handleOpenScannerDialog}
                                                 sx={{ bgcolor: "#007bff", textTransform: "none" }}
-                                                disabled={!useBarcode}
+                                                disabled={!useBarcode || isEditMode}
                                             >
                                                 Scan
                                             </Button>
@@ -1205,10 +1421,10 @@ const Inventory = () => {
                                         borderColor: "#007bff",
                                     },
                                 }}
-                                onClick={() => document.getElementById("fileInput").click()}
+                                onClick={() => !isEditMode && document.getElementById("fileInput").click()}
                             >
                                 {!formData.image && <Typography variant="h4" sx={{ color: "#ccc" }}>+</Typography>}
-                                <input id="fileInput" type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
+                                <input id="fileInput" type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} disabled={isEditMode} />
                                 {formData.image && (
                                     <img
                                         src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image}
@@ -1228,6 +1444,16 @@ const Inventory = () => {
                         </Grid>
                     </Grid>
                     <Grid item xs={12} sx={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
+                        {isEditMode && (
+                            <Button
+                                variant="contained"
+                                style={{ background: "#dc3545", textTransform: "none", width: "200px", height: "50px", fontSize: "19px", marginRight: 2 }}
+                                onClick={handleCloseUpdateDialog}
+                                size="large"
+                            >
+                                Cancel
+                            </Button>
+                        )}
                         <Button
                             variant="contained"
                             style={{ background: "#007bff", textTransform: "none", width: "200px", height: "50px", fontSize: "19px" }}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Add useEffect
 import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../services/authService';
 import { Box, Grid, TextField, Button, Typography, Link, Snackbar, Alert } from "@mui/material";
@@ -10,24 +10,39 @@ const Login = ({ setIsAuthenticated }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState(location.state?.success || '');
-    const [open, setOpen] = useState(false); // State for Snackbar
-    const [openSuccess, setOpenSuccess] = useState(!!successMessage); // State for Snackbar
+    const [open, setOpen] = useState(false);
+    const [openSuccess, setOpenSuccess] = useState(!!successMessage);
     const navigate = useNavigate();
+
+    // Redirect authenticated users away from login page
+    useEffect(() => {
+        const isAuthenticated = !!localStorage.getItem('authToken');
+        const userType = localStorage.getItem('userType');
+
+        if (isAuthenticated) {
+            // Redirect based on userType
+            if (userType === 'CUSTOMER') {
+                navigate('/product-list', { replace: true });
+            } else if (userType === 'OWNER' || userType === 'EMPLOYEE') {
+                navigate('/dashboard', { replace: true });
+            }
+        }
+    }, [navigate]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
             const response = await authService.login(username, password);
             localStorage.setItem('username', username);
-            localStorage.setItem('authToken', 'dummy-token'); // Replace with actual token if generated
-            localStorage.setItem('userType', response.userType); // Store userType (e.g., "CUSTOMER", "OWNER", "EMPLOYEE")
+            localStorage.setItem('authToken', 'dummy-token'); // Replace with actual token
+            localStorage.setItem('userType', response.userType);
             setIsAuthenticated(true);
 
             // Redirect based on userType
             if (response.userType === 'CUSTOMER') {
-                navigate('/product-list', { state: { success: 'Logged in successfully' } });
+                navigate('/product-list', { state: { success: 'Logged in successfully' }, replace: true });
             } else if (response.userType === 'OWNER' || response.userType === 'EMPLOYEE') {
-                navigate('/dashboard', { state: { success: 'Logged in successfully' } });
+                navigate('/dashboard', { state: { success: 'Logged in successfully' }, replace: true });
             } else {
                 throw new Error('Unknown user type');
             }
@@ -46,7 +61,7 @@ const Login = ({ setIsAuthenticated }) => {
             return;
         }
         setOpen(false);
-        setOpenSuccess(false)
+        setOpenSuccess(false);
     };
 
     return (
