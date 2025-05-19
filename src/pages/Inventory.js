@@ -1,10 +1,34 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Grid, TextField, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Autocomplete, FormControlLabel, Checkbox } from "@mui/material";
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import UpdateIcon from '@mui/icons-material/Update';
-import defaultImage from '../images/unnamed.jpg';
+import {
+    Box,
+    Typography,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
+    Button,
+    Grid,
+    TextField,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogContentText,
+    DialogActions,
+    Snackbar,
+    Alert,
+    Autocomplete,
+    FormControlLabel,
+    Checkbox,
+    IconButton,
+} from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
+import UpdateIcon from "@mui/icons-material/Update";
+import defaultImage from "../images/unnamed.jpg";
 import productServices from "../services/productServices";
 import categoryService from "../services/categoryService";
 import authService from "../services/authService";
@@ -40,18 +64,18 @@ const Inventory = () => {
     const [categories, setCategories] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
     const [formData, setFormData] = useState({
-        productName: '',
-        categoryName: '',
-        quantity: '',
-        buyingPrice: '',
-        sellingPrice: '',
-        supplierCompanyName: '',
+        productName: "",
+        categoryName: "",
+        quantity: "",
+        buyingPrice: "",
+        sellingPrice: "",
+        supplierCompanyName: "",
         image: defaultImage,
-        barcode: '',
+        barcode: "",
     });
     const [useBarcode, setUseBarcode] = useState(true);
     const [formDataCategory, setFormDataCategory] = useState({
-        newCategoryName: ''
+        newCategoryName: "",
     });
     const [selectedProductId, setSelectedProductId] = useState(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -62,9 +86,9 @@ const Inventory = () => {
     const [categoryUpdateDialogOpen, setCategoryUpdateDialogOpen] = useState(false);
     const [categoryRegisterDialogOpen, setCategoryRegisterDialogOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarMessage, setSnackbarMessage] = useState("");
     const [snackbarErrorOpen, setSnackbarErrorOpen] = useState(false);
-    const [snackbarErrorMessage, setSnackbarErrorMessage] = useState('');
+    const [snackbarErrorMessage, setSnackbarErrorMessage] = useState("");
     const [isEditMode, setIsEditMode] = useState(false);
     const [openImageDialog, setOpenImageDialog] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
@@ -263,11 +287,14 @@ const Inventory = () => {
     }, []);
 
     useEffect(() => {
-        authService.getSuppliers().then(response => {
-            setSuppliers(response);
-        }).catch(error => {
-            console.error("Error fetching suppliers:", error);
-        });
+        authService
+            .getSuppliers()
+            .then((response) => {
+                setSuppliers(response);
+            })
+            .catch((error) => {
+                console.error("Error fetching suppliers:", error);
+            });
     }, []);
 
     useEffect(() => {
@@ -280,24 +307,31 @@ const Inventory = () => {
                 return;
             }
 
-            const scanner = new Html5QrcodeScanner("reader", {
-                fps: 10,
-                qrbox: { width: 350, height: 350 },
-                rememberLastUsedCamera: true,
-                aspectRatio: 1.0,
-            }, false);
+            const scanner = new Html5QrcodeScanner(
+                "reader",
+                {
+                    fps: 10,
+                    qrbox: { width: 350, height: 350 },
+                    rememberLastUsedCamera: true,
+                    aspectRatio: 1.0,
+                },
+                false
+            );
 
             scannerRef.current = scanner;
 
-            scanner.render((data) => {
-                setFormData(prev => ({ ...prev, barcode: data }));
-                setIsManualBarcode(false);
-                setSnackbarMessage("Barcode scanned and set: " + data);
-                setSnackbarOpen(true);
-                handleCloseScannerDialog();
-            }, (error) => {
-                console.error("Scan error:", error);
-            });
+            scanner.render(
+                (data) => {
+                    setFormData((prev) => ({ ...prev, barcode: data }));
+                    setIsManualBarcode(false);
+                    setSnackbarMessage("Barcode scanned and set: " + data);
+                    setSnackbarOpen(true);
+                    handleCloseScannerDialog();
+                },
+                (error) => {
+                    console.error("Scan error:", error);
+                }
+            );
         };
 
         if (scannerRef.current) {
@@ -322,7 +356,7 @@ const Inventory = () => {
         }
         setFormData({
             ...formData,
-            [name]: value
+            [name]: value,
         });
     };
 
@@ -330,12 +364,12 @@ const Inventory = () => {
         const { name, value } = e.target;
         setFormDataCategory({
             ...formDataCategory,
-            [name]: value
+            [name]: value,
         });
     };
 
     const handleFileChange = (e) => {
-        setFormData(prev => ({ ...prev, image: e.target.files[0] }));
+        setFormData((prev) => ({ ...prev, image: e.target.files[0] }));
     };
 
     const handleImageClick = (image) => {
@@ -375,10 +409,10 @@ const Inventory = () => {
             await productServices.deleteProduct(selectedProductId);
             const updatedProducts = products.filter((product) => product.productId !== selectedProductId);
             setProducts(updatedProducts);
-            setSnackbarMessage('Product deleted successfully');
+            setSnackbarMessage("Product deleted successfully");
             setSnackbarOpen(true);
         } catch (error) {
-            console.error('Error deleting product:', error);
+            console.error("Error deleting product:", error);
         } finally {
             handleCloseDeleteDialog();
         }
@@ -393,9 +427,8 @@ const Inventory = () => {
                 return;
             }
 
-            const barcodeExists = products.some(product =>
-                product.barcode === formData.barcode &&
-                (!isEditMode || product.productId !== selectedProductId)
+            const barcodeExists = products.some(
+                (product) => product.barcode === formData.barcode && (!isEditMode || product.productId !== selectedProductId)
             );
             if (barcodeExists) {
                 setSnackbarErrorMessage("This barcode is already associated with another product");
@@ -412,53 +445,61 @@ const Inventory = () => {
 
     const handleConfirmRegisterProduct = async () => {
         if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
-            setSnackbarErrorMessage('Please fill in all required fields');
+            setSnackbarErrorMessage("Please fill in all required fields");
             setSnackbarErrorOpen(true);
             return;
         }
 
         if (!isEditMode) {
             if (!formData.quantity || Number(formData.quantity) <= 0) {
-                setSnackbarErrorMessage('Quantity must be greater than zero');
+                setSnackbarErrorMessage("Quantity must be greater than zero");
                 setSnackbarErrorOpen(true);
                 return;
             }
 
-            if (!formData.buyingPrice || !formData.sellingPrice || Number(formData.buyingPrice) <= 0 || Number(formData.sellingPrice) <= 0) {
-                setSnackbarErrorMessage('Buying and selling prices must be greater than zero');
+            if (
+                !formData.buyingPrice ||
+                !formData.sellingPrice ||
+                Number(formData.buyingPrice) <= 0 ||
+                Number(formData.sellingPrice) <= 0
+            ) {
+                setSnackbarErrorMessage("Buying and selling prices must be greater than zero");
                 setSnackbarErrorOpen(true);
                 return;
             }
 
             if (Number(formData.buyingPrice) > Number(formData.sellingPrice)) {
-                setSnackbarErrorMessage('Buying price must be less than or equal to selling price');
+                setSnackbarErrorMessage("Buying price must be less than or equal to selling price");
                 setSnackbarErrorOpen(true);
                 return;
             }
         }
 
-        const categoryExists = categories.some(category => category.categoryName === formData.categoryName);
+        const categoryExists = categories.some((category) => category.categoryName === formData.categoryName);
         if (!categoryExists) {
-            setSnackbarErrorMessage('Category does not exist');
+            setSnackbarErrorMessage("Category does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const supplierExists = suppliers.some(supplier => supplier.companyName === formData.supplierCompanyName);
+        const supplierExists = suppliers.some((supplier) => supplier.companyName === formData.supplierCompanyName);
         if (!supplierExists) {
-            setSnackbarErrorMessage('Supplier does not exist');
+            setSnackbarErrorMessage("Supplier does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const duplicate = products.find(product =>
-            product.productName.replace(/\s*\([^)]+\)\s*$/, '').trim() === formData.productName &&
-            product.supplierCompanyName === formData.supplierCompanyName &&
-            (product.barcode == null || product.barcode === formData.barcode) &&
-            (!isEditMode || product.productId !== selectedProductId)
+        const duplicate = products.find(
+            (product) =>
+                product.productName.replace(/\s*\([^)]+\)\s*$/, "").trim() === formData.productName &&
+                product.supplierCompanyName === formData.supplierCompanyName &&
+                (product.barcode == null || product.barcode === formData.barcode) &&
+                (!isEditMode || product.productId !== selectedProductId)
         );
         if (duplicate && !isEditMode) {
-            setSnackbarErrorMessage("Product with name '" + formData.productName + "' from supplier '" + formData.supplierCompanyName + "' already exists");
+            setSnackbarErrorMessage(
+                "Product with name '" + formData.productName + "' from supplier '" + formData.supplierCompanyName + "' already exists"
+            );
             setSnackbarErrorOpen(true);
             return;
         }
@@ -471,29 +512,29 @@ const Inventory = () => {
                 buyingPrice: Number(formData.buyingPrice) || 0.0,
                 sellingPrice: Number(formData.sellingPrice) || 0.0,
                 supplierCompanyName: formData.supplierCompanyName,
-                barcode: useBarcode ? formData.barcode : '',
+                barcode: useBarcode ? formData.barcode : "",
                 image: formData.image,
             };
 
             const response = await productServices.addProduct(productData);
             setProducts([...products, response]);
-            setSnackbarMessage('Product added successfully');
+            setSnackbarMessage("Product added successfully");
             setSnackbarOpen(true);
             setFormData({
-                productName: '',
-                categoryName: '',
-                quantity: '',
-                buyingPrice: '',
-                sellingPrice: '',
-                supplierCompanyName: '',
+                productName: "",
+                categoryName: "",
+                quantity: "",
+                buyingPrice: "",
+                sellingPrice: "",
+                supplierCompanyName: "",
                 image: defaultImage,
-                barcode: '',
+                barcode: "",
             });
             setUseBarcode(true);
             setIsManualBarcode(false);
         } catch (error) {
-            console.error('Error adding product:', error);
-            setSnackbarErrorMessage('Failed to add product: ' + (error.response?.data?.message || error.message));
+            console.error("Error adding product:", error);
+            setSnackbarErrorMessage("Failed to add product: " + (error.response?.data?.message || error.message));
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseRegisterDialog();
@@ -504,7 +545,7 @@ const Inventory = () => {
 
     const handleUpdateProduct = (productId) => {
         const product = products.find((product) => product.productId === productId);
-        const rawProductName = product.productName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+        const rawProductName = product.productName.replace(/\s*\([^)]+\)\s*$/, "").trim();
         setFormData({
             productName: rawProductName,
             categoryName: product.categoryName,
@@ -513,7 +554,7 @@ const Inventory = () => {
             sellingPrice: product.sellingPrice,
             supplierCompanyName: product.supplierCompanyName,
             image: product.base64Image ? `data:image/jpeg;base64,${product.base64Image}` : defaultImage,
-            barcode: product.barcode || '',
+            barcode: product.barcode || "",
         });
         setUseBarcode(!!product.barcode);
         setSelectedProductId(productId);
@@ -531,10 +572,7 @@ const Inventory = () => {
                 return;
             }
 
-            const barcodeExists = products.some(product =>
-                product.barcode === formData.barcode &&
-                product.productId !== selectedProductId
-            );
+            const barcodeExists = products.some((product) => product.barcode === formData.barcode && product.productId !== selectedProductId);
             if (barcodeExists) {
                 setSnackbarErrorMessage("This barcode is already associated with another product");
                 setSnackbarErrorOpen(true);
@@ -553,21 +591,21 @@ const Inventory = () => {
 
     const handleConfirmUpdateProduct = async () => {
         if (!formData.productName || !formData.categoryName || !formData.supplierCompanyName) {
-            setSnackbarErrorMessage('Please fill in all required fields');
+            setSnackbarErrorMessage("Please fill in all required fields");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const categoryExists = categories.some(category => category.categoryName === formData.categoryName);
+        const categoryExists = categories.some((category) => category.categoryName === formData.categoryName);
         if (!categoryExists) {
-            setSnackbarErrorMessage('Category does not exist');
+            setSnackbarErrorMessage("Category does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
 
-        const supplierExists = suppliers.some(supplier => supplier.companyName === formData.supplierCompanyName);
+        const supplierExists = suppliers.some((supplier) => supplier.companyName === formData.supplierCompanyName);
         if (!supplierExists) {
-            setSnackbarErrorMessage('Supplier does not exist');
+            setSnackbarErrorMessage("Supplier does not exist");
             setSnackbarErrorOpen(true);
             return;
         }
@@ -585,31 +623,29 @@ const Inventory = () => {
             };
 
             const response = await productServices.updateProduct(selectedProductId, productData);
-            const updatedProducts = products.map((product) =>
-                product.productId === selectedProductId ? response : product
-            );
+            const updatedProducts = products.map((product) => (product.productId === selectedProductId ? response : product));
             setProducts(updatedProducts);
-            setSnackbarMessage('Product updated successfully');
+            setSnackbarMessage("Product updated successfully");
             setSnackbarOpen(true);
             setFormData({
-                productName: '',
-                categoryName: '',
-                quantity: '',
-                buyingPrice: '',
-                sellingPrice: '',
-                supplierCompanyName: '',
+                productName: "",
+                categoryName: "",
+                quantity: "",
+                buyingPrice: "",
+                sellingPrice: "",
+                supplierCompanyName: "",
                 image: defaultImage,
-                barcode: '',
+                barcode: "",
             });
             setUseBarcode(true);
             setIsManualBarcode(false);
         } catch (error) {
-            console.error('Error updating product:', error);
-            setSnackbarErrorMessage('Failed to update product: ' + (error.response?.data?.message || error.message));
+            console.error("Error updating product:", error);
+            setSnackbarErrorMessage("Failed to update product: " + (error.response?.data?.message || error.message));
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseUpdateDialog();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: "smooth" });
         }
     };
 
@@ -628,12 +664,12 @@ const Inventory = () => {
             await categoryService.deleteCategory(selectedCategoryId);
             const updatedCategories = categories.filter((category) => category.categoryId !== selectedCategoryId);
             setCategories(updatedCategories);
-            setSnackbarMessage('Category deleted successfully');
+            setSnackbarMessage("Category deleted successfully");
             setSnackbarOpen(true);
             fetchProducts(); // Refresh products to reflect updated category names
         } catch (error) {
-            console.error('Error deleting category:', error);
-            setSnackbarErrorMessage('Failed to delete category');
+            console.error("Error deleting category:", error);
+            setSnackbarErrorMessage("Failed to delete category");
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseCategoryDeleteDialog();
@@ -649,41 +685,40 @@ const Inventory = () => {
     const handleCloseCategoryUpdateDialog = () => {
         setCategoryUpdateDialogOpen(false);
         setSelectedCategoryId(null);
-        setFormDataCategory({ newCategoryName: '' });
+        setFormDataCategory({ newCategoryName: "" });
     };
 
     const handleUpdateCategory = async () => {
         if (!formDataCategory.newCategoryName.trim()) {
-            setSnackbarErrorMessage('Category name cannot be empty');
+            setSnackbarErrorMessage("Category name cannot be empty");
             setSnackbarErrorOpen(true);
             return;
         }
-        const categoryExists = categories.some(category =>
-            category.categoryName === formDataCategory.newCategoryName &&
-            category.categoryId !== selectedCategoryId
+        const categoryExists = categories.some(
+            (category) => category.categoryName === formDataCategory.newCategoryName && category.categoryId !== selectedCategoryId
         );
         if (categoryExists) {
-            setSnackbarErrorMessage('Category name already exists');
+            setSnackbarErrorMessage("Category name already exists");
             setSnackbarErrorOpen(true);
             return;
         }
 
         try {
             const updatedCategory = {
-                categoryName: formDataCategory.newCategoryName
+                categoryName: formDataCategory.newCategoryName,
             };
             await categoryService.updateCategory(selectedCategoryId, updatedCategory);
-            setCategories(categories.map(category =>
-                category.categoryId === selectedCategoryId
-                    ? { ...category, categoryName: formDataCategory.newCategoryName }
-                    : category
-            ));
-            setSnackbarMessage('Category updated successfully');
+            setCategories(
+                categories.map((category) =>
+                    category.categoryId === selectedCategoryId ? { ...category, categoryName: formDataCategory.newCategoryName } : category
+                )
+            );
+            setSnackbarMessage("Category updated successfully");
             setSnackbarOpen(true);
             fetchProducts(); // Refresh products to reflect updated category names
         } catch (error) {
-            console.error('Error updating category:', error);
-            setSnackbarErrorMessage('Failed to update category');
+            console.error("Error updating category:", error);
+            setSnackbarErrorMessage("Failed to update category");
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseCategoryUpdateDialog();
@@ -700,31 +735,31 @@ const Inventory = () => {
 
     const handleRegisterCategory = async () => {
         if (!formDataCategory.newCategoryName.trim()) {
-            setSnackbarErrorMessage('Category name cannot be empty');
+            setSnackbarErrorMessage("Category name cannot be empty");
             setSnackbarErrorOpen(true);
             return;
         }
-        const categoryExists = categories.some(category => category.categoryName === formDataCategory.newCategoryName);
+        const categoryExists = categories.some((category) => category.categoryName === formDataCategory.newCategoryName);
         if (categoryExists) {
-            setSnackbarErrorMessage('Category already exists');
+            setSnackbarErrorMessage("Category already exists");
             setSnackbarErrorOpen(true);
             return;
         }
 
         try {
             const newCategory = {
-                categoryName: formDataCategory.newCategoryName
+                categoryName: formDataCategory.newCategoryName,
             };
             const response = await categoryService.addCategory(newCategory);
             setCategories([...categories, response.data]);
-            setSnackbarMessage('Category added successfully');
+            setSnackbarMessage("Category added successfully");
             setSnackbarOpen(true);
             setFormDataCategory({
-                newCategoryName: ''
+                newCategoryName: "",
             });
         } catch (error) {
-            console.error('Error adding category:', error);
-            setSnackbarErrorMessage('Failed to add category');
+            console.error("Error adding category:", error);
+            setSnackbarErrorMessage("Failed to add category");
             setSnackbarErrorOpen(true);
         } finally {
             handleCloseCategoryRegisterDialog();
@@ -734,7 +769,7 @@ const Inventory = () => {
     return (
         <Box sx={{ padding: 4, paddingTop: 7 }}>
             <Box>
-                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', fontWeight: 'bold' }}>
+                <Typography variant="h4" gutterBottom sx={{ color: "#0478C0", fontWeight: "bold" }}>
                     Inventory
                 </Typography>
                 <Grid container spacing={2} sx={{ marginBottom: 3 }}>
@@ -744,9 +779,7 @@ const Inventory = () => {
                             getOptionLabel={(option) => option.label}
                             value={filterOptions.find((option) => option.value === filterType)}
                             onChange={(event, newValue) => setFilterType(newValue?.value || "productName")}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Filter By" variant="outlined" />
-                            )}
+                            renderInput={(params) => <TextField {...params} label="Filter By" variant="outlined" />}
                         />
                     </Grid>
                     <Grid item xs={12} md={3}>
@@ -763,7 +796,7 @@ const Inventory = () => {
                             variant="contained"
                             onClick={() => handleOpenRestockDialog(null)}
                             sx={{ bgcolor: "#00ffff", textTransform: "none", color: "black", mr: 2 }}
-                            startIcon={<AddCircleIcon/>}
+                            startIcon={<AddCircleIcon />}
                         >
                             Add Stock
                         </Button>
@@ -771,7 +804,7 @@ const Inventory = () => {
                             variant="contained"
                             onClick={() => handleOpenUpdateBatchDialog(null)}
                             sx={{ bgcolor: "#ff9800", textTransform: "none", color: "black" }}
-                            startIcon={<UpdateIcon/>}
+                            startIcon={<UpdateIcon />}
                         >
                             Update Batch
                         </Button>
@@ -781,7 +814,7 @@ const Inventory = () => {
                     open={restockDialogOpen}
                     onClose={handleCloseRestockDialog}
                     maxWidth="md"
-                    sx={{ '& .MuiDialog-paper': { minHeight: '400px', minWidth: '600px' } }}
+                    sx={{ "& .MuiDialog-paper": { minHeight: "400px", minWidth: "600px" } }}
                 >
                     <DialogTitle>Restock Product</DialogTitle>
                     <DialogContent>
@@ -790,9 +823,7 @@ const Inventory = () => {
                             getOptionLabel={(option) => option.productName}
                             onChange={(event, newValue) => handleOpenRestockDialog(newValue)}
                             value={selectedProduct}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }}/>
-                            )}
+                            renderInput={(params) => <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <Autocomplete
                             options={[{ batchId: null, label: "Create New Batch" }, ...batches.map(batch => ({
@@ -800,10 +831,8 @@ const Inventory = () => {
                                 label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`
                             }))]}
                             getOptionLabel={(option) => option.label}
-                            onChange={(event, newValue) => setSelectedBatch(newValue?.batchId ? batches.find(b => b.batchId === newValue.batchId) : null)}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }}/>
-                            )}
+                            onChange={(event, newValue) => setSelectedBatch(newValue?.batchId ? batches.find((b) => b.batchId === newValue.batchId) : null)}
+                            renderInput={(params) => <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <TextField
                             fullWidth
@@ -841,30 +870,21 @@ const Inventory = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
-                <Dialog
-                    open={restockConfirmDialogOpen}
-                    onClose={handleCloseRestockConfirmDialog}
-                >
+                <Dialog open={restockConfirmDialogOpen} onClose={handleCloseRestockConfirmDialog}>
                     <DialogTitle>Confirm Restock</DialogTitle>
                     <DialogContent>
-                        <DialogContentText>
-                            Are you sure you want to restock this product?
-                        </DialogContentText>
+                        <DialogContentText>Are you sure you want to restock this product?</DialogContentText>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={handleCloseRestockConfirmDialog}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleRestock}>
-                            Confirm
-                        </Button>
+                        <Button onClick={handleCloseRestockConfirmDialog}>Cancel</Button>
+                        <Button onClick={handleRestock}>Confirm</Button>
                     </DialogActions>
                 </Dialog>
                 <Dialog
                     open={updateBatchDialogOpen}
                     onClose={handleCloseUpdateBatchDialog}
                     maxWidth="md"
-                    sx={{ '& .MuiDialog-paper': { minHeight: '400px', minWidth: '600px' } }}
+                    sx={{ "& .MuiDialog-paper": { minHeight: "400px", minWidth: "600px" } }}
                 >
                     <DialogTitle>Update Batch</DialogTitle>
                     <DialogContent>
@@ -873,18 +893,16 @@ const Inventory = () => {
                             getOptionLabel={(option) => option.productName}
                             onChange={(event, newValue) => handleOpenUpdateBatchDialog(newValue)}
                             value={selectedProduct}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }}/>
-                            )}
+                            renderInput={(params) => <TextField {...params} label="Select Product" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <Autocomplete
-                            options={batches.map(batch => ({
+                            options={batches.map((batch) => ({
                                 batchId: batch.batchId,
-                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`
+                                label: `Batch #${batch.batchId} (Qty: ${batch.quantity}, Buy: ${batch.buyingPrice}, Sell: ${batch.sellingPrice})`,
                             }))}
                             getOptionLabel={(option) => option.label}
                             onChange={(event, newValue) => {
-                                const batch = newValue?.batchId ? batches.find(b => b.batchId === newValue.batchId) : null;
+                                const batch = newValue?.batchId ? batches.find((b) => b.batchId === newValue.batchId) : null;
                                 setSelectedBatch(batch);
                                 if (batch) {
                                     setUpdatedQuantity(batch.quantity.toString());
@@ -896,9 +914,7 @@ const Inventory = () => {
                                     setUpdatedSellingPrice("");
                                 }
                             }}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }}/>
-                            )}
+                            renderInput={(params) => <TextField {...params} label="Select Batch" variant="outlined" sx={{ marginTop: 2 }} />}
                         />
                         <TextField
                             fullWidth
@@ -935,23 +951,14 @@ const Inventory = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
-                <Dialog
-                    open={updateBatchConfirmDialogOpen}
-                    onClose={handleCloseUpdateBatchConfirmDialog}
-                >
+                <Dialog open={updateBatchConfirmDialogOpen} onClose={handleCloseUpdateBatchConfirmDialog}>
                     <DialogTitle>Confirm Update Batch</DialogTitle>
                     <DialogContent>
-                        <DialogContentText>
-                            Are you sure you want to update this batch?
-                        </DialogContentText>
+                        <DialogContentText>Are you sure you want to update this batch?</DialogContentText>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={handleCloseUpdateBatchConfirmDialog}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleUpdateBatch}>
-                            Confirm
-                        </Button>
+                        <Button onClick={handleCloseUpdateBatchConfirmDialog}>Cancel</Button>
+                        <Button onClick={handleUpdateBatch}>Confirm</Button>
                     </DialogActions>
                 </Dialog>
                 <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
@@ -972,7 +979,7 @@ const Inventory = () => {
                         </TableHead>
                         <TableBody>
                             {filteredProducts.map((product) => (
-                                <TableRow key={product.productId}>
+                                <TableRow key={product.productId} hover>
                                     <TableCell>{product.productId}</TableCell>
                                     <TableCell>
                                         {product.base64Image && (
@@ -1000,67 +1007,38 @@ const Inventory = () => {
                                     <TableCell>{product.buyingPrice}</TableCell>
                                     <TableCell>{product.sellingPrice}</TableCell>
                                     <TableCell>{product.supplierCompanyName}</TableCell>
-                                    <TableCell>{product.barcode || '#N/A'}</TableCell>
+                                    <TableCell>{product.barcode || "#N/A"}</TableCell>
                                     <TableCell>
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            sx={{
-                                                bgcolor: '#007bff',
-                                                minWidth: '40px',
-                                                padding: '4px',
-                                                marginRight: '4px',
-                                                '&:hover': { bgcolor: '#0056b3' }
-                                            }}
-                                            onClick={() => handleUpdateProduct(product.productId)}
-                                            title="Edit Product"
-                                        >
-                                            <EditIcon fontSize="small" />
-                                        </Button>
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            sx={{
-                                                bgcolor: '#dc3545',
-                                                minWidth: '40px',
-                                                padding: '4px',
-                                                marginRight: '4px',
-                                                '&:hover': { bgcolor: '#a71d2a' }
-                                            }}
-                                            onClick={() => handleOpenDeleteDialog(product.productId)}
-                                            title="Delete Product"
-                                        >
-                                            <DeleteIcon fontSize="small" />
-                                        </Button>
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            sx={{
-                                                bgcolor: '#28a745',
-                                                minWidth: '40px',
-                                                padding: '4px',
-                                                marginRight: '4px',
-                                                '&:hover': { bgcolor: '#1e7e34' }
-                                            }}
-                                            onClick={() => handleOpenRestockDialog(product)}
-                                            title="Restock Product"
-                                        >
-                                            <AddCircleIcon fontSize="small" />
-                                        </Button>
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            sx={{
-                                                bgcolor: '#ff9800',
-                                                minWidth: '40px',
-                                                padding: '4px',
-                                                '&:hover': { bgcolor: '#f57c00' }
-                                            }}
-                                            onClick={() => handleOpenUpdateBatchDialog(product)}
-                                            title="Update Batch"
-                                        >
-                                            <UpdateIcon fontSize="small" />
-                                        </Button>
+                                        <Box sx={{ display: "flex", gap: 1 }}>
+                                            <IconButton
+                                                onClick={() => handleUpdateProduct(product.productId)}
+                                                title="Edit Product"
+                                                sx={{ color: "#007bff" }}
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => handleOpenDeleteDialog(product.productId)}
+                                                title="Delete Product"
+                                                sx={{ color: "#dc3545" }}
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => handleOpenRestockDialog(product)}
+                                                title="Restock Product"
+                                                sx={{ color: "#28a745" }}
+                                            >
+                                                <AddCircleIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => handleOpenUpdateBatchDialog(product)}
+                                                title="Update Batch"
+                                                sx={{ color: "#ff9800" }}
+                                            >
+                                                <UpdateIcon />
+                                            </IconButton>
+                                        </Box>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -1086,25 +1064,24 @@ const Inventory = () => {
             </Dialog>
 
             <Box ref={updateSectionRef} sx={{ paddingTop: 5 }}>
-                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0' }}>
-                    {isEditMode ? 'Update Product' : 'Add New Product'}
+                <Typography variant="h4" gutterBottom sx={{ color: "#0478C0" }}>
+                    {isEditMode ? "Update Product" : "Add New Product"}
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
                         <Grid item xs={12} md={6}>
-                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: "bold", color: "#2e7d32" }}>
                                 Product Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
                                     <TextField
                                         fullWidth
-                                        label="Product Name"
+                                        label="Product Name *"
                                         name="productName"
                                         value={formData.productName}
                                         onChange={handleChange}
                                         variant="outlined"
-                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -1114,14 +1091,7 @@ const Inventory = () => {
                                         onChange={(event, newValue) => {
                                             setFormData({ ...formData, categoryName: newValue });
                                         }}
-                                        renderInput={(params) => (
-                                            <TextField
-                                                {...params}
-                                                label="Category"
-                                                variant="outlined"
-                                                required
-                                            />
-                                        )}
+                                        renderInput={(params) => <TextField {...params} label="Category *" variant="outlined" />}
                                     />
                                 </Grid>
                                 {!isEditMode && (
@@ -1129,37 +1099,34 @@ const Inventory = () => {
                                         <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Initial Quantity"
+                                                label="Initial Quantity *"
                                                 name="quantity"
                                                 type="number"
                                                 value={formData.quantity}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                required
                                             />
                                         </Grid>
                                         <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Buying Price"
+                                                label="Buying Price *"
                                                 name="buyingPrice"
                                                 type="number"
                                                 value={formData.buyingPrice}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                required
                                             />
                                         </Grid>
                                         <Grid item xs={12}>
                                             <TextField
                                                 fullWidth
-                                                label="Selling Price"
+                                                label="Selling Price *"
                                                 name="sellingPrice"
                                                 type="number"
                                                 value={formData.sellingPrice}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                required
                                             />
                                         </Grid>
                                     </>
@@ -1171,14 +1138,7 @@ const Inventory = () => {
                                         onChange={(event, newValue) => {
                                             setFormData({ ...formData, supplierCompanyName: newValue });
                                         }}
-                                        renderInput={(params) => (
-                                            <TextField
-                                                {...params}
-                                                label="Supplier"
-                                                variant="outlined"
-                                                required
-                                            />
-                                        )}
+                                        renderInput={(params) => <TextField {...params} label="Supplier *" variant="outlined" />}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -1189,14 +1149,14 @@ const Inventory = () => {
                                                 onChange={(e) => {
                                                     setUseBarcode(e.target.checked);
                                                     if (!e.target.checked) {
-                                                        setFormData(prev => ({ ...prev, barcode: '' }));
+                                                        setFormData((prev) => ({ ...prev, barcode: "" }));
                                                         setIsManualBarcode(false);
                                                     }
                                                 }}
                                                 color="primary"
                                             />
                                         }
-                                        label="Use Barcode(untick if barcode is not available)"
+                                        label="Use Barcode (untick if barcode is not available)"
                                     />
                                     <Grid container spacing={2} alignItems="center">
                                         <Grid item xs={9}>
@@ -1225,68 +1185,63 @@ const Inventory = () => {
                             </Grid>
                         </Grid>
 
-                        <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                        <Grid item xs={12} md={6} sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: "bold", color: "#2e7d32" }}>
                                 Product Image
                             </Typography>
                             <Box
                                 sx={{
-                                    width: '200px',
-                                    height: '200px',
-                                    border: '2px dashed #ccc',
-                                    borderRadius: '8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    backgroundColor: '#f9f9f9',
-                                    position: 'relative',
+                                    width: "200px",
+                                    height: "200px",
+                                    border: "2px dashed #ccc",
+                                    borderRadius: "8px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    backgroundColor: "#f9f9f9",
+                                    position: "relative",
+                                    "&:hover": {
+                                        borderColor: "#007bff",
+                                    },
                                 }}
-                                onClick={() => document.getElementById('fileInput').click()}
+                                onClick={() => document.getElementById("fileInput").click()}
                             >
-                                {!formData.image && (
-                                    <Typography variant="h4" sx={{ color: '#ccc' }}>+</Typography>
-                                )}
-                                <input
-                                    id="fileInput"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileChange}
-                                    style={{ display: 'none' }}
-                                />
+                                {!formData.image && <Typography variant="h4" sx={{ color: "#ccc" }}>+</Typography>}
+                                <input id="fileInput" type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
                                 {formData.image && (
                                     <img
                                         src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image}
                                         alt="Preview"
                                         style={{
-                                            position: 'absolute',
+                                            position: "absolute",
                                             top: 0,
                                             left: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover',
-                                            borderRadius: '8px',
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover",
+                                            borderRadius: "8px",
                                         }}
                                     />
                                 )}
                             </Box>
                         </Grid>
                     </Grid>
-                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                    <Grid item xs={12} sx={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
                         <Button
                             variant="contained"
-                            style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
+                            style={{ background: "#007bff", textTransform: "none", width: "200px", height: "50px", fontSize: "19px" }}
                             onClick={isEditMode ? handleOpenUpdateDialog : handleOpenRegisterDialog}
                             size="large"
                         >
-                            {isEditMode ? 'Update Product' : 'Add Product'}
+                            {isEditMode ? "Update Product" : "Add Product"}
                         </Button>
                     </Grid>
                 </Paper>
             </Box>
 
             <Box>
-                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0', paddingTop: 5 }}>
+                <Typography variant="h4" gutterBottom sx={{ color: "#0478C0", paddingTop: 5 }}>
                     Categories
                 </Typography>
                 <TableContainer component={Paper}>
@@ -1300,26 +1255,26 @@ const Inventory = () => {
                         </TableHead>
                         <TableBody>
                             {categories.map((category) => (
-                                <TableRow key={category.categoryId}>
+                                <TableRow key={category.categoryId} hover>
                                     <TableCell>{category.categoryId}</TableCell>
                                     <TableCell>{category.categoryName}</TableCell>
                                     <TableCell>
-                                        <Button
-                                            variant="contained"
-                                            sx={{ bgcolor: '#007bff', mr: 1 }}
-                                            onClick={() => handleOpenCategoryUpdateDialog(category)}
-                                            startIcon={<EditIcon />}
-                                        >
-                                            Edit
-                                        </Button>
-                                        <Button
-                                            variant="contained"
-                                            sx={{ bgcolor: '#dc3545' }}
-                                            onClick={() => handleOpenCategoryDeleteDialog(category.categoryId)}
-                                            startIcon={<DeleteIcon />}
-                                        >
-                                            Delete
-                                        </Button>
+                                        <Box sx={{ display: "flex", gap: 1 }}>
+                                            <IconButton
+                                                onClick={() => handleOpenCategoryUpdateDialog(category)}
+                                                title="Edit Category"
+                                                sx={{ color: "#007bff" }}
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() => handleOpenCategoryDeleteDialog(category.categoryId)}
+                                                title="Delete Category"
+                                                sx={{ color: "#dc3545" }}
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Box>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -1329,34 +1284,33 @@ const Inventory = () => {
             </Box>
 
             <Box sx={{ paddingTop: 5 }}>
-                <Typography variant="h4" gutterBottom sx={{ color: '#0478C0' }}>
+                <Typography variant="h4" gutterBottom sx={{ color: "#0478C0" }}>
                     Add New Category
                 </Typography>
                 <Paper elevation={3} sx={{ padding: 4, marginTop: 2 }}>
                     <Grid container spacing={3}>
                         <Grid item xs={12} md={6}>
-                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: 'bold', color: '#2e7d32' }}>
+                            <Typography variant="h6" align="center" sx={{ marginBottom: 2, fontWeight: "bold", color: "#2e7d32" }}>
                                 Category Details
                             </Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12}>
                                     <TextField
                                         fullWidth
-                                        label="New Category Name"
+                                        label="New Category Name *"
                                         name="newCategoryName"
                                         value={formDataCategory.newCategoryName}
                                         onChange={handleChangeCategory}
                                         variant="outlined"
-                                        required
                                     />
                                 </Grid>
                             </Grid>
                         </Grid>
                     </Grid>
-                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                    <Grid item xs={12} sx={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
                         <Button
                             variant="contained"
-                            style={{ background: '#007bff', textTransform: 'none', width: '200px', height: '50px', fontSize: '19px' }}
+                            style={{ background: "#007bff", textTransform: "none", width: "200px", height: "50px", fontSize: "19px" }}
                             onClick={handleOpenCategoryRegisterDialog}
                             size="large"
                         >
@@ -1369,85 +1323,55 @@ const Inventory = () => {
             <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
                 <DialogTitle>Confirm Deletion</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to delete this product?
-                    </DialogContentText>
+                    <DialogContentText>Are you sure you want to delete this product?</DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDeleteDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleConfirmDelete}>
-                        Delete
-                    </Button>
+                    <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
+                    <Button onClick={handleConfirmDelete}>Delete</Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog open={registerDialogOpen} onClose={handleCloseRegisterDialog}>
                 <DialogTitle>Confirm Registration</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to register this product?
-                    </DialogContentText>
+                    <DialogContentText>Are you sure you want to register this product?</DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseRegisterDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleConfirmRegisterProduct}>
-                        Register
-                    </Button>
+                    <Button onClick={handleCloseRegisterDialog}>Cancel</Button>
+                    <Button onClick={handleConfirmRegisterProduct}>Register</Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog open={updateDialogOpen} onClose={handleCloseUpdateDialog}>
                 <DialogTitle>Confirm Update</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to update this product?
-                    </DialogContentText>
+                    <DialogContentText>Are you sure you want to update this product?</DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseUpdateDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleConfirmUpdateProduct}>
-                        Update
-                    </Button>
+                    <Button onClick={handleCloseUpdateDialog}>Cancel</Button>
+                    <Button onClick={handleConfirmUpdateProduct}>Update</Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog open={categoryRegisterDialogOpen} onClose={handleCloseCategoryRegisterDialog}>
                 <DialogTitle>Confirm Registration</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to add this category?
-                    </DialogContentText>
+                    <DialogContentText>Are you sure you want to add this category?</DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseCategoryRegisterDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleRegisterCategory}>
-                        Register
-                    </Button>
+                    <Button onClick={handleCloseCategoryRegisterDialog}>Cancel</Button>
+                    <Button onClick={handleRegisterCategory}>Register</Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog open={categoryDeleteDialogOpen} onClose={handleCloseCategoryDeleteDialog}>
                 <DialogTitle>Confirm Deletion</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to delete this category?
-                    </DialogContentText>
+                    <DialogContentText>Are you sure you want to delete this category?</DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseCategoryDeleteDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleDeleteCategory}>
-                        Delete
-                    </Button>
+                    <Button onClick={handleCloseCategoryDeleteDialog}>Cancel</Button>
+                    <Button onClick={handleDeleteCategory}>Delete</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1456,22 +1380,17 @@ const Inventory = () => {
                 <DialogContent>
                     <TextField
                         fullWidth
-                        label="Category Name"
+                        label="Category Name *"
                         name="newCategoryName"
                         value={formDataCategory.newCategoryName}
                         onChange={handleChangeCategory}
                         variant="outlined"
-                        required
                         sx={{ marginTop: 2 }}
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseCategoryUpdateDialog}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleUpdateCategory}>
-                        Update
-                    </Button>
+                    <Button onClick={handleCloseCategoryUpdateDialog}>Cancel</Button>
+                    <Button onClick={handleUpdateCategory}>Update</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1480,14 +1399,14 @@ const Inventory = () => {
                 onClose={handleCloseScannerDialog}
                 maxWidth="lg"
                 fullWidth
-                sx={{ '& .MuiDialog-paper': { width: '90vw', maxWidth: '600px', height: '70vh', maxHeight: '500px' } }}
+                sx={{ "& .MuiDialog-paper": { width: "90vw", maxWidth: "600px", height: "70vh", maxHeight: "500px" } }}
             >
                 <DialogTitle>Scan Barcode</DialogTitle>
                 <DialogContent>
                     <div
                         id="reader"
                         ref={readerRef}
-                        style={{ width: '100%', height: 'calc(100% - 20px)', minHeight: '300px', border: '1px solid #ccc' }}
+                        style={{ width: "100%", height: "calc(100% - 20px)", minHeight: "300px", border: "1px solid #ccc" }}
                     ></div>
                 </DialogContent>
                 <DialogActions>
@@ -1495,13 +1414,23 @@ const Inventory = () => {
                 </DialogActions>
             </Dialog>
 
-            <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-                <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: '100%', height: '100%' }}>
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={3000}
+                onClose={() => setSnackbarOpen(false)}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+                <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: "100%", height: "100%" }}>
                     {snackbarMessage}
                 </Alert>
             </Snackbar>
-            <Snackbar open={snackbarErrorOpen} autoHideDuration={3000} onClose={() => setSnackbarErrorOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-                <Alert onClose={() => setSnackbarErrorOpen(false)} severity="error" sx={{ width: '100%', height: '100%' }}>
+            <Snackbar
+                open={snackbarErrorOpen}
+                autoHideDuration={3000}
+                onClose={() => setSnackbarErrorOpen(false)}
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+                <Alert onClose={() => setSnackbarErrorOpen(false)} severity="error" sx={{ width: "100%", height: "100%" }}>
                     {snackbarErrorMessage}
                 </Alert>
             </Snackbar>

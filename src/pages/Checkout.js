@@ -567,7 +567,7 @@ function Checkout() {
                             </Typography>
                         </Box>
                         <Typography variant="body2" paragraph>
-                            A confirmation email has been sent to {formData.email}.
+                            A confirmation email will sent to {formData.email}.
                             Please bring your Order ID when you pick up your order.
                         </Typography>
                         <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>

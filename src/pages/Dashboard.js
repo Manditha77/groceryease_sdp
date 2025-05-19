@@ -63,39 +63,22 @@ const Dashboard = () => {
     const [orderDialogOpen, setOrderDialogOpen] = useState(false);
     const [userType, setUserType] = useState(localStorage.getItem('userType'));
 
-    // State for new features
-    const [salesData, setSalesData] = useState({
-        totalSales: 0,
-        onlineSales: 0,
-        posSales: 0,
-    });
-    const [creditCustomers, setCreditCustomers] = useState({
-        count: 0,
-        totalDue: 0,
-    });
-    const [inventorySummary, setInventorySummary] = useState({
-        inHand: 0,
-        toReceive: 0,
-    });
+    const [salesData, setSalesData] = useState({ totalSales: 0, onlineSales: 0, posSales: 0 });
+    const [creditCustomers, setCreditCustomers] = useState({ count: 0, totalDue: 0 });
+    const [inventorySummary, setInventorySummary] = useState({ inHand: 0, toReceive: 0 });
     const [salesDistribution, setSalesDistribution] = useState([]);
     const [topCategories, setTopCategories] = useState([]);
 
     const notificationSound = new Audio('/sounds/notification.wav');
 
-    const isRechartsAvailable = () => {
-        return typeof PieChart !== 'undefined' && typeof BarChart !== 'undefined';
-    };
+    const isRechartsAvailable = () => typeof PieChart !== 'undefined' && typeof BarChart !== 'undefined';
 
     useEffect(() => {
-        if (location.state?.success) {
-            setTimeout(() => setOpen(false), 3000);
-        }
+        if (location.state?.success) setTimeout(() => setOpen(false), 3000);
     }, [location.state]);
 
     useEffect(() => {
-        const handleStorageChange = () => {
-            setUserType(localStorage.getItem('userType'));
-        };
+        const handleStorageChange = () => setUserType(localStorage.getItem('userType'));
         window.addEventListener('storage', handleStorageChange);
         return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
@@ -120,8 +103,7 @@ const Dashboard = () => {
     const fetchLowStockProducts = async () => {
         try {
             const response = await productService.getAllProducts();
-            const products = response.data;
-            setLowStockProducts(products.filter(product => product.quantity < 10));
+            setLowStockProducts(response.data.filter(product => product.quantity < 10));
         } catch (error) {
             console.error('Error fetching low stock products:', error);
             setErrorMessage('Failed to load low stock products.');
@@ -136,17 +118,14 @@ const Dashboard = () => {
                 const preOrders = fetchedOrders.filter(order =>
                     order.orderType === 'ECOMMERCE' &&
                     (showCompleted
-                        ? (order.status === 'PENDING' || order.status === 'PROCESSING' || order.status === 'COMPLETED')
-                        : (order.status === 'PENDING' || order.status === 'PROCESSING'))
+                        ? ['PENDING', 'PROCESSING', 'COMPLETED'].includes(order.status)
+                        : ['PENDING', 'PROCESSING'].includes(order.status))
                 );
                 setOrders(preOrders);
-
-                const completedCount = fetchedOrders.filter(order =>
-                    order.orderType === 'ECOMMERCE' && order.status === 'COMPLETED'
-                ).length;
-                setCompletedPreOrdersCount(completedCount);
+                setCompletedPreOrdersCount(
+                    fetchedOrders.filter(order => order.orderType === 'ECOMMERCE' && order.status === 'COMPLETED').length
+                );
             } else {
-                console.error('Fetched orders is not an array:', fetchedOrders);
                 setOrders([]);
                 setCompletedPreOrdersCount(0);
                 setErrorMessage('Failed to load orders. Unexpected response format.');
@@ -155,21 +134,14 @@ const Dashboard = () => {
             console.error('Error fetching orders:', error);
             setOrders([]);
             setCompletedPreOrdersCount(0);
-            const message = error.response?.data?.message || error.message || 'Failed to load orders. Please try again later.';
-            setErrorMessage(message);
+            setErrorMessage(error.response?.data?.message || error.message || 'Failed to load orders.');
         }
     };
 
     const fetchProducts = async () => {
         try {
             const response = await productService.getAllProducts();
-            const fetchedProducts = response.data;
-            if (Array.isArray(fetchedProducts)) {
-                setProducts(fetchedProducts);
-            } else {
-                console.error('Fetched products is not an array:', fetchedProducts);
-                setProducts([]);
-            }
+            setProducts(Array.isArray(response.data) ? response.data : []);
         } catch (error) {
             console.error('Error fetching products:', error);
             setProducts([]);
@@ -178,8 +150,7 @@ const Dashboard = () => {
 
     const fetchSalesData = async () => {
         try {
-            const response = await orderServices.getTodaySales();
-            setSalesData(response.data);
+            setSalesData((await orderServices.getTodaySales()).data);
         } catch (error) {
             console.error('Error fetching sales data:', error);
             setErrorMessage('Failed to load sales data.');
@@ -203,13 +174,11 @@ const Dashboard = () => {
 
     const fetchSalesDistribution = async () => {
         try {
-            const response = await orderServices.getTodaySales();
-            const { onlineSales, posSales } = response.data;
-            const distribution = [
+            const { onlineSales, posSales } = (await orderServices.getTodaySales()).data;
+            setSalesDistribution([
                 { name: 'Online Sales', value: onlineSales || 0 },
                 { name: 'POS Sales', value: posSales || 0 },
-            ];
-            setSalesDistribution(distribution);
+            ]);
         } catch (error) {
             console.error('Error fetching sales distribution:', error);
             setErrorMessage('Failed to load sales distribution.');
@@ -220,13 +189,9 @@ const Dashboard = () => {
     const fetchTopCategories = async () => {
         try {
             const response = await orderServices.getTodaySalesByCategory();
-            const topCategories = response.data
-                .slice(0, 4)
-                .map(item => ({
-                    name: item.categoryName,
-                    sales: item.sales,
-                }));
-            setTopCategories(topCategories);
+            setTopCategories(
+                response.data.slice(0, 4).map(item => ({ name: item.categoryName, sales: item.sales }))
+            );
         } catch (error) {
             console.error('Error fetching top categories:', error);
             setErrorMessage('Failed to load top categories.');
@@ -245,286 +210,173 @@ const Dashboard = () => {
         fetchTopCategories();
 
         webSocketService.connect((newOrder) => {
-            setOrders((prevOrders) => {
-                const updatedOrders = [newOrder, ...prevOrders].filter(order =>
-                    order.orderType === 'ECOMMERCE' &&
-                    (showCompleted
-                        ? (order.status === 'PENDING' || order.status === 'PROCESSING' || order.status === 'COMPLETED')
-                        : (order.status === 'PENDING' || order.status === 'PROCESSING'))
-                );
-                return updatedOrders;
-            });
+            setOrders(prev => [newOrder, ...prev].filter(order =>
+                order.orderType === 'ECOMMERCE' &&
+                (showCompleted
+                    ? ['PENDING', 'PROCESSING', 'COMPLETED'].includes(order.status)
+                    : ['PENDING', 'PROCESSING'].includes(order.status))
+            ));
             setNewOrderNotification(newOrder);
             setOpenNewOrderSnackbar(true);
         });
 
-        return () => {
-            webSocketService.disconnect();
-        };
+        return () => webSocketService.disconnect();
     }, [showCompleted]);
 
     useEffect(() => {
-        if (openNewOrderSnackbar) {
-            notificationSound.play().catch((error) => {
-                console.error('Error playing notification sound:', error);
-            });
-        }
+        if (openNewOrderSnackbar) notificationSound.play().catch(error => console.error('Error playing sound:', error));
     }, [openNewOrderSnackbar]);
 
-    const handleClose = () => {
-        setOpen(false);
-    };
-
-    const handleUpdateSnackbarClose = () => {
-        setOpenUpdateSnackbar(false);
-    };
-
+    const handleClose = () => setOpen(false);
+    const handleUpdateSnackbarClose = () => setOpenUpdateSnackbar(false);
     const handleNewOrderSnackbarClose = () => {
         setOpenNewOrderSnackbar(false);
         setNewOrderNotification(null);
     };
-
-    const handleNotificationSnackbarClose = () => {
-        setOpenNotificationSnackbar(false);
-    };
-
-    const handleOrderClick = (order) => {
+    const handleNotificationSnackbarClose = () => setOpenNotificationSnackbar(false);
+    const handleOrderClick = order => {
         setSelectedOrder(order);
         setNewStatus(order.status);
         setOrderDialogOpen(true);
     };
-
     const handleOrderDialogClose = () => {
         setOrderDialogOpen(false);
         setSelectedOrder(null);
         setNewStatus('');
     };
-
-    const handleStatusChange = (event) => {
-        setNewStatus(event.target.value);
-    };
-
+    const handleStatusChange = event => setNewStatus(event.target.value);
     const handleStatusUpdate = async () => {
         if (!selectedOrder || !newStatus) return;
-
         setIsUpdating(true);
         try {
             const orderId = selectedOrder.orderId;
             const response = await orderServices.updateOrderStatus(orderId, newStatus);
-            console.log('Updated order from backend:', response.data);
-
             await fetchOrders();
-            const updatedOrderResponse = await orderServices.getOrderById(orderId);
-            const updatedOrder = updatedOrderResponse.data;
+            const updatedOrder = (await orderServices.getOrderById(orderId)).data;
             setSelectedOrder(updatedOrder);
-
-            await fetchProducts();
-            await fetchLowStockProducts();
-            await fetchInventoryData();
-
+            await Promise.all([fetchProducts(), fetchLowStockProducts(), fetchInventoryData()]);
             const warnings = response.warnings || [];
-            if (warnings.length > 0) {
-                setUpdateMessage('Order status updated, but some inventory adjustments failed:\n' + warnings.join('\n'));
-                setUpdateSeverity('warning');
-            } else {
-                setUpdateMessage('Order status updated successfully!');
-                setUpdateSeverity('success');
-            }
+            setUpdateMessage(warnings.length > 0
+                ? `Order status updated, but issues occurred:\n${warnings.join('\n')}`
+                : 'Order status updated successfully!');
+            setUpdateSeverity(warnings.length > 0 ? 'warning' : 'success');
             setOpenUpdateSnackbar(true);
         } catch (error) {
             console.error('Error updating order status:', error);
-            const message = error.response?.data?.message || error.message || 'Failed to update order status. Please try again.';
-            setUpdateMessage(message);
+            setUpdateMessage(error.response?.data?.message || error.message || 'Failed to update order status.');
             setUpdateSeverity('error');
             setOpenUpdateSnackbar(true);
         } finally {
             setIsUpdating(false);
         }
     };
-
     const handleSendOrderReceivedNotification = async () => {
         if (!selectedOrder) return;
-
         try {
             const response = await orderServices.sendOrderReceivedNotification(selectedOrder.orderId);
             setNotificationMessage(response.data.message);
             setNotificationSeverity('success');
             setOpenNotificationSnackbar(true);
         } catch (error) {
-            console.error('Error sending order received notification:', error);
-            const message = error.response?.data?.message || 'Failed to send order received notification.';
-            setNotificationMessage(message);
+            console.error('Error sending notification:', error);
+            setNotificationMessage(error.response?.data?.message || 'Failed to send notification.');
             setNotificationSeverity('error');
             setOpenNotificationSnackbar(true);
         }
     };
-
     const handleSendOrderCompletedNotification = async () => {
         if (!selectedOrder) return;
-
         try {
             const response = await orderServices.sendOrderCompletedNotification(selectedOrder.orderId);
             setNotificationMessage(response.data.message);
             setNotificationSeverity('success');
             setOpenNotificationSnackbar(true);
         } catch (error) {
-            console.error('Error sending order completed notification:', error);
-            const message = error.response?.data?.message || 'Failed to send order completed notification.';
-            setNotificationMessage(message);
+            console.error('Error sending notification:', error);
+            setNotificationMessage(error.response?.data?.message || 'Failed to send notification.');
             setNotificationSeverity('error');
             setOpenNotificationSnackbar(true);
         }
     };
-
-    const getProductName = (productId) => {
+    const getProductName = productId => {
         const product = products.find(p => p.productId === productId);
         return product ? product.productName : `Product ID: ${productId} (Not Found)`;
     };
-
-    const handleSwitchChange = (event) => {
-        setShowCompleted(event.target.checked);
-    };
-
-    const TransitionRight = (props) => {
-        return <Slide {...props} direction="left" />;
-    };
-
+    const handleSwitchChange = event => setShowCompleted(event.target.checked);
+    const TransitionRight = props => <Slide {...props} direction="left" />;
     const COLORS = ['#42A5F5', '#90CAF9'];
 
     return (
         <Box sx={{ padding: 4, paddingTop: 7, bgcolor: '#F5F7FA' }}>
             <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
-                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>
-                    {successMessage}
-                </Alert>
+                <Alert onClose={handleClose} severity="success" sx={{ width: '100%' }}>{successMessage}</Alert>
             </Snackbar>
-
-            <Snackbar
-                open={openUpdateSnackbar}
-                autoHideDuration={6000}
-                onClose={handleUpdateSnackbarClose}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-            >
-                <Alert onClose={handleUpdateSnackbarClose} severity={updateSeverity} sx={{ width: '100%' }}>
-                    {updateMessage}
-                </Alert>
+            <Snackbar open={openUpdateSnackbar} autoHideDuration={6000} onClose={handleUpdateSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                <Alert onClose={handleUpdateSnackbarClose} severity={updateSeverity} sx={{ width: '100%' }}>{updateMessage}</Alert>
             </Snackbar>
-
-            <Snackbar
-                open={openNewOrderSnackbar}
-                autoHideDuration={6000}
-                onClose={handleNewOrderSnackbarClose}
-                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                TransitionComponent={TransitionRight}
-            >
-                <Alert
-                    onClose={handleNewOrderSnackbarClose}
-                    severity="info"
-                    sx={{ width: '100%', bgcolor: '#0288d1', color: '#fff' }}
-                >
+            <Snackbar open={openNewOrderSnackbar} autoHideDuration={6000} onClose={handleNewOrderSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }} TransitionComponent={TransitionRight}>
+                <Alert onClose={handleNewOrderSnackbarClose} severity="info" sx={{ width: '100%', bgcolor: '#0288d1', color: '#fff' }}>
                     New Order Received! Order ID: {newOrderNotification?.orderId} from {newOrderNotification?.customerName}
                 </Alert>
             </Snackbar>
-
-            <Snackbar
-                open={openNotificationSnackbar}
-                autoHideDuration={6000}
-                onClose={handleNotificationSnackbarClose}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-            >
-                <Alert onClose={handleNotificationSnackbarClose} severity={notificationSeverity} sx={{ width: '100%' }}>
-                    {notificationMessage}
-                </Alert>
+            <Snackbar open={openNotificationSnackbar} autoHideDuration={6000} onClose={handleNotificationSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                <Alert onClose={handleNotificationSnackbarClose} severity={notificationSeverity} sx={{ width: '100%' }}>{notificationMessage}</Alert>
             </Snackbar>
 
-            <Typography variant="h4" gutterBottom sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
-                Dashboard
-            </Typography>
+            <Typography variant="h4" gutterBottom sx={{ color: '#1E88E5', fontWeight: 'bold' }}>Dashboard</Typography>
 
             <Grid container spacing={3}>
-                {/* Left Side: 2/3 of the screen */}
                 <Grid item xs={12} md={8}>
-                    {/* Inventory Overview and Sales */}
                     <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>
-                                Inventory Overview
-                            </Typography>
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>Inventory Overview</Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>Total Products</Typography>
                                     <Typography variant="h4" sx={{ color: '#1E88E5' }}>{inventoryCount}</Typography>
-                                    <Typography variant="body2" sx={{ color: '#FF5252' }}>
-                                        Low Stock: {lowStockCount}
-                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#FF5252' }}>Low Stock: {lowStockCount}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>Current Stock</Typography>
                                     <Typography variant="h4" sx={{ color: '#2E7D32' }}>{inventorySummary.inHand}</Typography>
-                                    <Typography variant="body2" sx={{ color: '#424242' }}>
-                                        To Receive: {inventorySummary.toReceive}
-                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#424242' }}>To Receive: {inventorySummary.toReceive}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>Credit Customers</Typography>
                                     <Typography variant="h4" sx={{ color: '#1E88E5' }}>{creditCustomers.count}</Typography>
-                                    <Typography variant="body2" sx={{ color: '#424242' }}>
-                                        Total Due: Rs. {creditCustomers.totalDue.toLocaleString()}
-                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#424242' }}>Total Due: Rs. {creditCustomers.totalDue.toLocaleString()}</Typography>
                                 </Grid>
                             </Grid>
                         </CardContent>
                     </Card>
-
-                    {/* Sales Data */}
                     <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>
-                                Today's Sales
-                            </Typography>
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 2 }}>Today's Sales</Typography>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>Total Sales</Typography>
-                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
-                                        Rs. {salesData.totalSales.toLocaleString()}
-                                    </Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>Rs. {salesData.totalSales.toLocaleString()}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>Online Sales</Typography>
-                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
-                                        Rs. {salesData.onlineSales.toLocaleString()}
-                                    </Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>Rs. {salesData.onlineSales.toLocaleString()}</Typography>
                                 </Grid>
                                 <Grid item xs={12} sm={4}>
                                     <Typography variant="h6" sx={{ color: '#424242' }}>POS Sales</Typography>
-                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>
-                                        Rs. {salesData.posSales.toLocaleString()}
-                                    </Typography>
+                                    <Typography variant="h4" sx={{ color: '#1E88E5' }}>Rs. {salesData.posSales.toLocaleString()}</Typography>
                                 </Grid>
                             </Grid>
                         </CardContent>
                     </Card>
-
-                    {/* Charts */}
                     <Grid container spacing={2}>
                         <Grid item xs={12} md={6}>
                             <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
                                 <CardContent>
-                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
-                                        Sales Distribution
-                                    </Typography>
+                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>Sales Distribution</Typography>
                                     {isRechartsAvailable() && (
                                         <ResponsiveContainer width="100%" height={200}>
                                             <PieChart>
-                                                <Pie
-                                                    data={salesDistribution}
-                                                    dataKey="value"
-                                                    nameKey="name"
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    outerRadius={80}
-                                                    label
-                                                >
+                                                <Pie data={salesDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
                                                     {salesDistribution.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                     ))}
@@ -540,9 +392,7 @@ const Dashboard = () => {
                         <Grid item xs={12} md={6}>
                             <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
                                 <CardContent>
-                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>
-                                        Top Categories
-                                    </Typography>
+                                    <Typography variant="h6" sx={{ color: '#1E88E5', fontWeight: 'bold' }}>Top Categories</Typography>
                                     {isRechartsAvailable() && (
                                         <ResponsiveContainer width="100%" height={200}>
                                             <BarChart data={topCategories}>
@@ -558,120 +408,64 @@ const Dashboard = () => {
                         </Grid>
                     </Grid>
                 </Grid>
-
-                {/* Right Side: 1/3 of the screen */}
                 <Grid item xs={12} md={4}>
-                    {/* Pre-Orders */}
                     <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1, mb: 3 }}>
                         <CardContent>
-                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 1 }}>
-                                Pre-Orders
-                            </Typography>
+                            <Typography variant="h5" sx={{ color: '#1E88E5', fontWeight: 'bold', mb: 1 }}>Pre-Orders</Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                <Typography variant="h6" sx={{ color: '#424242' }}>
-                                    Completed Pre-Orders: {completedPreOrdersCount}
-                                </Typography>
-                                <Box>
-                                    <Switch
-                                        checked={showCompleted}
-                                        onChange={handleSwitchChange}
-                                        color="primary"
-                                        inputProps={{ 'aria-label': 'Show Completed Orders' }}
-                                        title="Show Completed Orders"
-                                    />
-                                </Box>
+                                <Typography variant="h6" sx={{ color: '#424242' }}>Completed: {completedPreOrdersCount}</Typography>
+                                <Switch checked={showCompleted} onChange={handleSwitchChange} color="primary" title="Show Completed Orders" />
                             </Box>
-                            {errorMessage && (
-                                <Typography variant="body1" sx={{ color: '#FF5252', mb: 2 }}>
-                                    {errorMessage}
-                                </Typography>
-                            )}
+                            {errorMessage && <Typography variant="body1" sx={{ color: '#FF5252', mb: 2 }}>{errorMessage}</Typography>}
                             {Array.isArray(orders) && orders.length > 0 ? (
-                                <TableContainer component={Paper}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Order ID</TableCell>
-                                                <TableCell>Customer Name</TableCell>
-                                                <TableCell>Payment Method</TableCell>
-                                                <TableCell>Total Amount</TableCell>
-                                                <TableCell>Status</TableCell>
-                                                <TableCell>Order Date</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {orders.map((order) => (
-                                                <TableRow
-                                                    key={order.orderId || 'unknown'}
-                                                    onClick={() => handleOrderClick(order)}
-                                                    sx={{ cursor: 'pointer', '&:hover': { backgroundColor: '#f5f5f5' } }}
-                                                >
-                                                    <TableCell>{order.orderId || 'N/A'}</TableCell>
-                                                    <TableCell>{order.customerName || 'N/A'}</TableCell>
-                                                    <TableCell>{order.paymentMethod || 'N/A'}</TableCell>
-                                                    <TableCell>Rs.{order.totalAmount !== undefined ? order.totalAmount : '0'}</TableCell>
-                                                    <TableCell>{order.status || 'N/A'}</TableCell>
-                                                    <TableCell>
-                                                        {order.orderDate ? new Date(order.orderDate).toLocaleString() : 'N/A'}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
+                                <Grid container spacing={2}>
+                                    {orders.map(order => (
+                                        <Grid item xs={12} key={order.orderId || 'unknown'}>
+                                            <Card onClick={() => handleOrderClick(order)} sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#f5f5f5' } }}>
+                                                <CardContent>
+                                                    <Typography variant="h6">{order.customerName || 'N/A'}</Typography>
+                                                    <Typography variant="body2">Order ID: {order.orderId || 'N/A'}</Typography>
+                                                    <Chip
+                                                        label={order.status || 'N/A'}
+                                                        color={order.status === 'COMPLETED' ? 'success' : 'warning'}
+                                                        size="small"
+                                                    />
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
                             ) : (
                                 <Typography variant="body1" sx={{ color: '#757575' }}>
-                                    {showCompleted
-                                        ? 'No pending, processing, or completed pre-orders available.'
-                                        : 'No pending or processing pre-orders available.'}
+                                    {showCompleted ? 'No pre-orders available.' : 'No pending/processing pre-orders.'}
                                 </Typography>
                             )}
                         </CardContent>
                     </Card>
-
-                    {/* Low Stock Products */}
                     <Card sx={{ bgcolor: '#FFFFFF', borderRadius: 2, boxShadow: 1 }}>
                         <CardContent>
-                            <Typography variant="h5" sx={{ color: '#FF5252', fontWeight: 'bold', mb: 2 }}>
-                                Low Stock Products
-                            </Typography>
+                            <Typography variant="h5" sx={{ color: '#FF5252', fontWeight: 'bold', mb: 2 }}>Low Stock Products</Typography>
                             {lowStockProducts.length > 0 ? (
-                                <TableContainer component={Paper}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Product Name</TableCell>
-                                                <TableCell align="right">Quantity</TableCell>
-                                                <TableCell align="right">Category</TableCell>
-                                                <TableCell align="right">Company</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {lowStockProducts.map((product) => (
-                                                <TableRow key={product.productId}>
-                                                    <TableCell>
-                                                        {product.productName}
-                                                        {product.quantity === 0 && (
-                                                            <Chip
-                                                                label="Out of Stock"
-                                                                color="error"
-                                                                size="small"
-                                                                sx={{ ml: 1, bgcolor: '#FF5252', color: '#fff' }}
-                                                            />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell align="right">{product.quantity}</TableCell>
-                                                    <TableCell align="right">{product.categoryName}</TableCell>
-                                                    <TableCell align="right">{product.supplierCompanyName}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
+                                <Grid container spacing={2}>
+                                    {lowStockProducts.map(product => (
+                                        <Grid item xs={12} key={product.productId}>
+                                            <Card>
+                                                <CardContent>
+                                                    <Typography variant="h6">{product.productName}</Typography>
+                                                    <Chip
+                                                        label={product.quantity === 0 ? 'Out of Stock' : `Qty: ${product.quantity}`}
+                                                        color={product.quantity === 0 ? 'error' : 'warning'}
+                                                        size="small"
+                                                    />
+                                                    <Typography variant="body2">Category: {product.categoryName}</Typography>
+                                                    <Typography variant="body2">Company: {product.supplierCompanyName}</Typography>
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
                             ) : (
-                                <Typography variant="body1" sx={{ color: '#757575' }}>
-                                    No products are running low on stock.
-                                </Typography>
+                                <Typography variant="body1" sx={{ color: '#757575' }}>No low stock products.</Typography>
                             )}
                         </CardContent>
                     </Card>
@@ -683,29 +477,25 @@ const Dashboard = () => {
                 <DialogContent>
                     {selectedOrder && (
                         <Box>
-                            <Typography variant="h6">Customer Name: {selectedOrder.customerName || 'N/A'}</Typography>
-                            <Typography variant="body1">Payment Method: {selectedOrder.paymentMethod || 'N/A'}</Typography>
-                            <Typography variant="body1">
-                                Total Amount: Rs.{selectedOrder.totalAmount !== undefined ? selectedOrder.totalAmount : '0'}
-                            </Typography>
-                            <Typography variant="body1">
-                                Order Date: {selectedOrder.orderDate ? new Date(selectedOrder.orderDate).toLocaleString() : 'N/A'}
-                            </Typography>
-                            <Box sx={{ mt: 2, mb: 2 }}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Status</InputLabel>
-                                    <Select
-                                        value={newStatus}
-                                        onChange={handleStatusChange}
-                                        label="Status"
-                                    >
-                                        <MenuItem value="PENDING">Pending</MenuItem>
-                                        <MenuItem value="PROCESSING">Processing</MenuItem>
-                                        <MenuItem value="COMPLETED">Completed</MenuItem>
-                                        <MenuItem value="CANCELLED">Cancelled</MenuItem>
-                                    </Select>
-                                </FormControl>
-                            </Box>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} md={6}>
+                                    <Typography variant="h6">Customer: {selectedOrder.customerName || 'N/A'}</Typography>
+                                    <Typography variant="body1">Payment: {selectedOrder.paymentMethod || 'N/A'}</Typography>
+                                    <Typography variant="body1">Total: Rs.{selectedOrder.totalAmount ?? '0'}</Typography>
+                                    <Typography variant="body1">Date: {selectedOrder.orderDate ? new Date(selectedOrder.orderDate).toLocaleString() : 'N/A'}</Typography>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                    <FormControl fullWidth>
+                                        <InputLabel>Status</InputLabel>
+                                        <Select value={newStatus} onChange={handleStatusChange} label="Status">
+                                            <MenuItem value="PENDING">Pending</MenuItem>
+                                            <MenuItem value="PROCESSING">Processing</MenuItem>
+                                            <MenuItem value="COMPLETED">Completed</MenuItem>
+                                            <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                            </Grid>
                             <Typography variant="h6" sx={{ mt: 2 }}>Items:</Typography>
                             <TableContainer component={Paper}>
                                 <Table>
@@ -713,26 +503,22 @@ const Dashboard = () => {
                                         <TableRow>
                                             <TableCell>Product</TableCell>
                                             <TableCell>Quantity</TableCell>
-                                            <TableCell>Selling Price</TableCell>
+                                            <TableCell>Price</TableCell>
                                             <TableCell>Subtotal</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {selectedOrder.items && Array.isArray(selectedOrder.items) ? (
-                                            selectedOrder.items.map((item) => (
+                                            selectedOrder.items.map(item => (
                                                 <TableRow key={item.id || 'unknown'}>
                                                     <TableCell>{getProductName(item.productId)}</TableCell>
-                                                    <TableCell>{item.quantity !== undefined ? item.quantity : 'N/A'}</TableCell>
-                                                    <TableCell>Rs.{item.sellingPrice !== undefined ? item.sellingPrice : '0'}</TableCell>
-                                                    <TableCell>
-                                                        Rs.{item.sellingPrice !== undefined && item.quantity !== undefined ? (item.quantity * item.sellingPrice) : '0'}
-                                                    </TableCell>
+                                                    <TableCell>{item.quantity ?? 'N/A'}</TableCell>
+                                                    <TableCell>Rs.{item.sellingPrice ?? '0'}</TableCell>
+                                                    <TableCell>Rs.{(item.quantity && item.sellingPrice) ? (item.quantity * item.sellingPrice) : '0'}</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={4}>No items available.</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell colSpan={4}>No items available.</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
@@ -742,28 +528,13 @@ const Dashboard = () => {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleOrderDialogClose} disabled={isUpdating}>Close</Button>
-                    <Button
-                        onClick={handleSendOrderReceivedNotification}
-                        color="secondary"
-                        variant="contained"
-                        disabled={isUpdating}
-                    >
+                    <Button onClick={handleSendOrderReceivedNotification} color="secondary" variant="contained" disabled={isUpdating}>
                         Send Order Received Email
                     </Button>
-                    <Button
-                        onClick={handleSendOrderCompletedNotification}
-                        color="success"
-                        variant="contained"
-                        disabled={isUpdating || selectedOrder?.status !== 'COMPLETED'}
-                    >
+                    <Button onClick={handleSendOrderCompletedNotification} color="success" variant="contained" disabled={isUpdating || selectedOrder?.status !== 'COMPLETED'}>
                         Send Order Completed Email
                     </Button>
-                    <Button
-                        onClick={handleStatusUpdate}
-                        color="primary"
-                        variant="contained"
-                        disabled={newStatus === selectedOrder?.status || isUpdating}
-                    >
+                    <Button onClick={handleStatusUpdate} color="primary" variant="contained" disabled={newStatus === selectedOrder?.status || isUpdating}>
                         {isUpdating ? 'Saving...' : 'Save Status'}
                     </Button>
                 </DialogActions>
