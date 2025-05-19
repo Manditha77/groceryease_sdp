@@ -31,7 +31,7 @@ public class ReceiptDTO {
     public static class ReceiptItemDTO {
         // Getters and Setters
         private String productName;
-        private Integer quantity;
+        private Double units; // Added to specify DISCRETE or WEIGHT
         private Double sellingPrice;
         private Double subtotal;
 

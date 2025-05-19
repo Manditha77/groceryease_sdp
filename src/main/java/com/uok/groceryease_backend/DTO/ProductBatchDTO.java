@@ -15,8 +15,9 @@ public class ProductBatchDTO {
     private Long batchId;
     private Long productId;
     private String productName;
-    private int quantity;
+    private double units; // Changed from int quantity to double units
     private double buyingPrice;
     private double sellingPrice;
     private LocalDateTime createdDate;
+    private LocalDateTime expireDate; // New field for expiration date
 }

@@ -156,9 +156,9 @@ public class LoanNotificationService {
             }
             emailBody.append("<tr>")
                     .append("<td style='padding: 8px;'>").append(productName).append("</td>")
-                    .append("<td style='padding: 8px; text-align: center;'>").append(item.getQuantity()).append("</td>")
+                    .append("<td style='padding: 8px; text-align: center;'>").append(item.getUnits()).append("</td>")
                     .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getSellingPrice())).append("</td>")
-                    .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getQuantity() * item.getSellingPrice())).append("</td>")
+                    .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getUnits() * item.getSellingPrice())).append("</td>")
                     .append("</tr>");
         });
 

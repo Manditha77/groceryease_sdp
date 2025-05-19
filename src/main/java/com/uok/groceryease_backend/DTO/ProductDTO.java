@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,7 +18,7 @@ public class ProductDTO {
     @NotBlank(message = "Product name cannot be empty")
     private String productName;
 
-    private int quantity;
+    private double units; // Changed from int quantity to double units
 
     private double buyingPrice;
 
@@ -34,5 +36,9 @@ public class ProductDTO {
 
     private String base64Image;
 
-    private String barcode; // New barcode field
+    private String barcode;
+
+    private String unitType; // Added to specify DISCRETE or WEIGHT
+
+    private LocalDateTime expireDate;
 }

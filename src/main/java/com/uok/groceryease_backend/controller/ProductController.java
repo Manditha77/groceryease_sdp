@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @CrossOrigin(origins = "*")
@@ -24,21 +25,27 @@ public class ProductController {
     public ResponseEntity<ProductDTO> addProduct(
             @RequestParam("productName") String productName,
             @RequestParam("categoryName") String categoryName,
-            @RequestParam("quantity") int quantity,
+            @RequestParam("units") double units, // Changed from quantity to units
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
             @RequestParam(value = "barcode", required = false) String barcode,
-            @RequestParam(value = "image", required = false) MultipartFile image) throws IOException {
+            @RequestParam(value = "unitType", required = false) String unitType, // Added unitType
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "expireDate", required = false) String expireDateStr) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
         productDTO.setProductName(productName);
         productDTO.setCategoryName(categoryName);
-        productDTO.setQuantity(quantity);
+        productDTO.setUnits(units);
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
         productDTO.setBarcode(barcode);
+        productDTO.setUnitType(unitType);
+        if (expireDateStr != null && !expireDateStr.isEmpty()) {
+            productDTO.setExpireDate(LocalDateTime.parse(expireDateStr)); // Assuming ISO format (e.g., 2025-08-20T00:00:00)
+        }
 
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
@@ -63,21 +70,27 @@ public class ProductController {
             @PathVariable Long productId,
             @RequestParam("productName") String productName,
             @RequestParam("categoryName") String categoryName,
-            @RequestParam("quantity") int quantity,
+            @RequestParam("units") double units, // Changed from quantity to units
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
             @RequestParam("supplierCompanyName") String supplierCompanyName,
             @RequestParam(value = "barcode", required = false) String barcode,
-            @RequestParam(value = "image", required = false) MultipartFile image) throws IOException {
+            @RequestParam(value = "unitType", required = false) String unitType, // Added unitType
+            @RequestParam(value = "image", required = false) MultipartFile image,
+            @RequestParam(value = "expireDate", required = false) String expireDateStr) throws IOException {
 
         ProductDTO productDTO = new ProductDTO();
         productDTO.setProductName(productName);
         productDTO.setCategoryName(categoryName);
-        productDTO.setQuantity(quantity);
+        productDTO.setUnits(units);
         productDTO.setBuyingPrice(buyingPrice);
         productDTO.setSellingPrice(sellingPrice);
         productDTO.setSupplierCompanyName(supplierCompanyName);
         productDTO.setBarcode(barcode);
+        productDTO.setUnitType(unitType);
+        if (expireDateStr != null && !expireDateStr.isEmpty()) {
+            productDTO.setExpireDate(LocalDateTime.parse(expireDateStr)); // Assuming ISO format
+        }
 
         if (image != null && !image.isEmpty()) {
             productDTO.setImage(image.getBytes());
@@ -94,23 +107,26 @@ public class ProductController {
     @PostMapping("/{productId}/restock")
     public ResponseEntity<ProductDTO> restockProduct(
             @PathVariable Long productId,
-            @RequestParam("quantity") int quantity,
+            @RequestParam("units") double units, // Changed from quantity to units
             @RequestParam("buyingPrice") double buyingPrice,
             @RequestParam("sellingPrice") double sellingPrice,
-            @RequestParam(value = "batchId", required = false) Long batchId) {
+            @RequestParam(value = "batchId", required = false) Long batchId,
+            @RequestParam(value = "expireDate", required = false) String expireDateStr) {
 
-        ProductDTO restockedProduct = productService.restockProduct(productId, quantity, buyingPrice, sellingPrice, batchId);
+        ProductDTO restockedProduct = productService.restockProduct(productId, units, buyingPrice, sellingPrice, batchId);
         return ResponseEntity.ok(restockedProduct);
     }
 
     @PutMapping("/batches/{batchId}")
     public ResponseEntity<ProductBatchDTO> updateBatch(
             @PathVariable Long batchId,
-            @RequestParam("quantity") int quantity,
+            @RequestParam("units") double units, // Changed from quantity to units
             @RequestParam("buyingPrice") double buyingPrice,
-            @RequestParam("sellingPrice") double sellingPrice) {
+            @RequestParam("sellingPrice") double sellingPrice,
+            @RequestParam("expireDate") String expireDateStr) {
 
-        ProductBatchDTO updatedBatch = productService.updateBatch(batchId, quantity, buyingPrice, sellingPrice);
+        LocalDateTime expireDate = LocalDateTime.parse(expireDateStr); // Assuming ISO format
+        ProductBatchDTO updatedBatch = productService.updateBatch(batchId, units, buyingPrice, sellingPrice, expireDate);
         return ResponseEntity.ok(updatedBatch);
     }
 
@@ -128,6 +144,18 @@ public class ProductController {
     public ResponseEntity<List<ProductBatchDTO>> getProductBatches(@PathVariable Long productId) {
         List<ProductBatchDTO> batches = productService.getProductBatches(productId);
         return ResponseEntity.ok(batches);
+    }
+
+    @DeleteMapping("/batches/{batchId}")
+    public ResponseEntity<Void> deleteBatch(@PathVariable Long batchId) {
+        productService.deleteBatch(batchId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/expiring-batches")
+    public ResponseEntity<List<ProductBatchDTO>> getExpiringBatches() {
+        List<ProductBatchDTO> expiringBatches = productService.getExpiringBatches();
+        return ResponseEntity.ok(expiringBatches);
     }
 
     @DeleteMapping("/{productId}")

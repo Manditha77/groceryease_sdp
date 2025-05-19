@@ -33,13 +33,13 @@ public class OrderNotificationService {
     @Transactional
     public void sendOrderReceivedNotification(Long orderId) throws Exception {
         logger.info("Attempting to send ORDER_RECEIVED notification for Order ID: {}", orderId);
-        sendNotification(orderId, "ORDER_RECEIVED", "Order Received - GroceryEase");
+        sendNotification(orderId, "ORDER_RECEIVED", "Order Received - Samantha Store");
     }
 
     @Transactional
     public void sendOrderCompletedNotification(Long orderId) throws Exception {
         logger.info("Attempting to send ORDER_COMPLETED notification for Order ID: {}", orderId);
-        sendNotification(orderId, "ORDER_COMPLETED", "Order Completed - GroceryEase");
+        sendNotification(orderId, "ORDER_COMPLETED", "Order Completed - Samantha Store");
     }
 
     private void sendNotification(Long orderId, String notificationType, String emailSubject) throws Exception {
@@ -136,7 +136,7 @@ public class OrderNotificationService {
                 .append("<table border='1' style='border-collapse: collapse; width: 100%;'>")
                 .append("<tr>")
                 .append("<th style='padding: 8px;'>Product</th>")
-                .append("<th style='padding: 8px;'>Quantity</th>")
+                .append("<th style='padding: 8px;'>Units(Qty/Kg)</th>")
                 .append("<th style='padding: 8px;'>Price</th>")
                 .append("<th style='padding: 8px;'>Subtotal</th>")
                 .append("</tr>");
@@ -149,9 +149,9 @@ public class OrderNotificationService {
             }
             emailBody.append("<tr>")
                     .append("<td style='padding: 8px;'>").append(productName).append("</td>")
-                    .append("<td style='padding: 8px; text-align: center;'>").append(item.getQuantity()).append("</td>")
+                    .append("<td style='padding: 8px; text-align: center;'>").append(item.getUnits()).append("</td>")
                     .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getSellingPrice())).append("</td>")
-                    .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getQuantity() * item.getSellingPrice())).append("</td>")
+                    .append("<td style='padding: 8px; text-align: right;'>Rs.").append(String.format("%.2f", item.getUnits() * item.getSellingPrice())).append("</td>")
                     .append("</tr>");
         });
 

@@ -25,7 +25,7 @@ public class OrderDTO {
     private Boolean inventoryAdjusted;
     private String orderType;
     private String username;
-    private CreditCustomerDetailsDTO creditCustomerDetails; // Added for credit purchases
+    private CreditCustomerDetailsDTO creditCustomerDetails;
     private ReceiptDTO receipt;
 
     @Getter

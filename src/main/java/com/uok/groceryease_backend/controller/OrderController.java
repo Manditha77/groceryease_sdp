@@ -168,10 +168,10 @@ public class OrderController {
     }
 
     @GetMapping("/pre-orders/pending")
-    public ResponseEntity<Map<String, Integer>> getPendingPreOrdersQuantity() {
-        int totalQuantity = orderService.getPendingPreOrdersQuantity();
-        Map<String, Integer> response = new HashMap<>();
-        response.put("toReceive", totalQuantity);
+    public ResponseEntity<Map<String, Double>> getPendingPreOrdersUnits() {
+        double totalUnits = orderService.getPendingPreOrdersUnits();
+        Map<String, Double> response = new HashMap<>();
+        response.put("toReceive", totalUnits);
         return ResponseEntity.ok(response);
     }
 }

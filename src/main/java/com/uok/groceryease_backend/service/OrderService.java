@@ -44,6 +44,20 @@ public class OrderService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    private void validateUnitsForProduct(Long productId, double units) {
+        Optional<Product> productOptional = productRepository.findById(productId);
+        if (!productOptional.isPresent()) {
+            throw new IllegalArgumentException("Product not found with ID: " + productId);
+        }
+        Product product = productOptional.get();
+        if (product.getUnitType() == Product.UnitType.DISCRETE && units % 1 != 0) {
+            throw new IllegalArgumentException("Units for DISCRETE product ID: " + productId + " must be an integer (e.g., 1, 2, 10).");
+        }
+        if (units <= 0) {
+            throw new IllegalArgumentException("Units must be greater than zero for product ID: " + productId);
+        }
+    }
+
     @Transactional
     public OrderDTO createOrder(OrderDTO orderDTO) {
         Order order = new Order();
@@ -60,12 +74,11 @@ public class OrderService {
         order.setInventoryAdjusted(false);
         order.setOrderType(Order.OrderType.ECOMMERCE);
 
-        // Look up the User by username and set it on the Order
         String username = orderDTO.getUsername();
         if (username != null && !username.isEmpty()) {
             User user = userService.findUserByUsername(username);
             order.setUser(user);
-            order.setUsername(username); // Keep this for now, but it may be redundant
+            order.setUsername(username);
         } else {
             throw new IllegalArgumentException("Username must be provided for e-commerce orders.");
         }
@@ -74,21 +87,23 @@ public class OrderService {
         List<String> inventoryWarnings = new ArrayList<>();
 
         for (OrderItemDTO itemDTO : orderDTO.getItems()) {
+            validateUnitsForProduct(itemDTO.getProductId(), itemDTO.getUnits());
+
             OrderItem orderItem = new OrderItem();
             orderItem.setProductId(itemDTO.getProductId());
-            orderItem.setQuantity(itemDTO.getQuantity());
+            orderItem.setUnits(itemDTO.getUnits());
             orderItem.setOrder(order);
 
             List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(itemDTO.getProductId());
-            int totalAvailableQuantity = batches.stream().mapToInt(ProductBatch::getQuantity).sum();
-            if (totalAvailableQuantity < itemDTO.getQuantity()) {
+            double totalAvailableUnits = batches.stream().mapToDouble(ProductBatch::getUnits).sum();
+            if (totalAvailableUnits < itemDTO.getUnits()) {
                 inventoryWarnings.add("Insufficient stock for product ID: " + itemDTO.getProductId() +
-                        ". Required: " + itemDTO.getQuantity() + ", Available: " + totalAvailableQuantity);
+                        ". Required: " + itemDTO.getUnits() + ", Available: " + totalAvailableUnits);
                 throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
             }
 
             ProductBatch mostRecentBatch = batches.stream()
-                    .filter(batch -> batch.getQuantity() > 0)
+                    .filter(batch -> batch.getUnits() > 0)
                     .max((b1, b2) -> b2.getCreatedDate().compareTo(b1.getCreatedDate()))
                     .orElseThrow(() -> new RuntimeException("No stock available for product ID: " + itemDTO.getProductId()));
             orderItem.setSellingPrice(mostRecentBatch.getSellingPrice());
@@ -120,7 +135,6 @@ public class OrderService {
         order.setOrderType(Order.OrderType.POS);
         order.setUsername(null);
 
-        // Handle credit customer
         if ("Credit Purpose".equals(orderDTO.getPaymentMethod()) && orderDTO.getCreditCustomerDetails() != null) {
             UserRegistrationDTO userDTO = new UserRegistrationDTO();
             userDTO.setFirstName(orderDTO.getCreditCustomerDetails().getFirstName());
@@ -131,7 +145,6 @@ public class OrderService {
             userDTO.setUserType(UserType.CUSTOMER);
             userDTO.setCustomerType("CREDIT");
 
-            // Register or find the credit customer
             User creditCustomer = userService.registerCreditCustomer(userDTO);
             order.setUser(creditCustomer);
         }
@@ -140,36 +153,38 @@ public class OrderService {
         List<String> inventoryWarnings = new ArrayList<>();
 
         for (OrderItemDTO itemDTO : orderDTO.getItems()) {
+            validateUnitsForProduct(itemDTO.getProductId(), itemDTO.getUnits());
+
             OrderItem orderItem = new OrderItem();
             orderItem.setProductId(itemDTO.getProductId());
-            orderItem.setQuantity(itemDTO.getQuantity());
+            orderItem.setUnits(itemDTO.getUnits());
             orderItem.setOrder(order);
 
             List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(itemDTO.getProductId());
-            int totalAvailableQuantity = batches.stream().mapToInt(ProductBatch::getQuantity).sum();
-            if (totalAvailableQuantity < itemDTO.getQuantity()) {
+            double totalAvailableUnits = batches.stream().mapToDouble(ProductBatch::getUnits).sum();
+            if (totalAvailableUnits < itemDTO.getUnits()) {
                 inventoryWarnings.add("Insufficient stock for product ID: " + itemDTO.getProductId() +
-                        ". Required: " + itemDTO.getQuantity() + ", Available: " + totalAvailableQuantity);
+                        ". Required: " + itemDTO.getUnits() + ", Available: " + totalAvailableUnits);
                 throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
             }
 
-            int remainingQuantity = itemDTO.getQuantity();
+            double remainingUnits = itemDTO.getUnits();
             ProductBatch selectedBatch = null;
 
             for (ProductBatch batch : batches) {
-                if (remainingQuantity <= 0) break;
-                if (batch.getQuantity() > 0) {
-                    int quantityToTake = Math.min(remainingQuantity, batch.getQuantity());
-                    batch.setQuantity(batch.getQuantity() - quantityToTake);
-                    remainingQuantity -= quantityToTake;
+                if (remainingUnits <= 0) break;
+                if (batch.getUnits() > 0) {
+                    double unitsToTake = Math.min(remainingUnits, batch.getUnits());
+                    batch.setUnits(batch.getUnits() - unitsToTake);
+                    remainingUnits -= unitsToTake;
                     selectedBatch = batch;
                     productBatchRepository.save(batch);
                 }
             }
 
-            if (remainingQuantity > 0) {
+            if (remainingUnits > 0) {
                 inventoryWarnings.add("Insufficient stock for product ID: " + itemDTO.getProductId() +
-                        ". Required: " + itemDTO.getQuantity() + ", Fulfilled: " + (itemDTO.getQuantity() - remainingQuantity));
+                        ". Required: " + itemDTO.getUnits() + ", Fulfilled: " + (itemDTO.getUnits() - remainingUnits));
                 throw new RuntimeException("Insufficient stock for product ID: " + itemDTO.getProductId());
             }
 
@@ -189,22 +204,15 @@ public class OrderService {
             order.setInventoryAdjusted(true);
         }
 
-        // Save the Order
         Order savedOrder = orderRepository.save(order);
-
-        // Generate the Receipt
         ReceiptDTO receiptDTO = generateReceipt(savedOrder);
-
-        // Convert Order to DTO
         OrderDTO savedOrderDTO = convertToDTO(savedOrder);
 
         if (!inventoryWarnings.isEmpty()) {
             savedOrderDTO.setWarnings(inventoryWarnings);
         }
 
-        // Add the receipt to the DTO
         savedOrderDTO.setReceipt(receiptDTO);
-
         messagingTemplate.convertAndSend("/topic/orders", savedOrderDTO);
         return savedOrderDTO;
     }
@@ -223,9 +231,9 @@ public class OrderService {
             Optional<Product> productOptional = productRepository.findById(item.getProductId());
             String productName = productOptional.isPresent() ? productOptional.get().getProductName() : "Unknown Product";
             receiptItem.setProductName(productName);
-            receiptItem.setQuantity(item.getQuantity());
+            receiptItem.setUnits(item.getUnits());
             receiptItem.setSellingPrice(item.getSellingPrice());
-            receiptItem.setSubtotal(item.getQuantity() * item.getSellingPrice());
+            receiptItem.setSubtotal(item.getUnits() * item.getSellingPrice());
             receiptItems.add(receiptItem);
         }
         receiptDTO.setItems(receiptItems);
@@ -267,52 +275,49 @@ public class OrderService {
         boolean isInventoryAdjusted = order.getInventoryAdjusted() != null ? order.getInventoryAdjusted() : false;
         List<String> inventoryWarnings = new ArrayList<>();
 
-        // Handle status transitions
         if (newStatus == Order.Status.PROCESSING) {
-            // Validate transition (e.g., only from PENDING to PROCESSING)
             if (previousStatus != Order.Status.PENDING) {
                 throw new IllegalStateException("Order can only be set to PROCESSING from PENDING status.");
             }
-            // No inventory adjustment needed for PROCESSING; just update status
             order.setStatus(newStatus);
         } else if (newStatus == Order.Status.COMPLETED && !isInventoryAdjusted && order.getOrderType() == Order.OrderType.ECOMMERCE) {
             for (OrderItem item : order.getItems()) {
                 List<ProductBatch> batches = productBatchRepository.findByProductProductIdOrderByCreatedDateAsc(item.getProductId());
-                int remainingQuantity = item.getQuantity();
+                double remainingUnits = item.getUnits();
                 ProductBatch selectedBatch = null;
 
                 for (ProductBatch batch : batches) {
-                    if (remainingQuantity <= 0) break;
-                    if (batch.getQuantity() > 0) {
-                        int quantityToTake = Math.min(remainingQuantity, batch.getQuantity());
-                        batch.setQuantity(batch.getQuantity() - quantityToTake);
-                        remainingQuantity -= quantityToTake;
+                    if (remainingUnits <= 0) break;
+                    if (batch.getUnits() > 0) {
+                        double unitsToTake = Math.min(remainingUnits, batch.getUnits());
+                        batch.setUnits(batch.getUnits() - unitsToTake);
+                        remainingUnits -= unitsToTake;
                         selectedBatch = batch;
                         productBatchRepository.save(batch);
                     }
                 }
 
-                if (remainingQuantity > 0) {
+                if (remainingUnits > 0) {
                     inventoryWarnings.add("Insufficient stock for product ID: " + item.getProductId() + ". Required: " +
-                            item.getQuantity() + ", fulfilled: " + (item.getQuantity() - remainingQuantity));
-                    continue;
-                }
-
-                if (selectedBatch != null) {
+                            item.getUnits() + ", fulfilled: " + (item.getUnits() - remainingUnits));
+                } else if (selectedBatch != null) {
                     item.setBatch(selectedBatch);
                 } else {
                     inventoryWarnings.add("No stock available for product ID: " + item.getProductId());
                 }
             }
 
-            if (inventoryWarnings.isEmpty()) {
-                order.setInventoryAdjusted(true);
+            if (!inventoryWarnings.isEmpty()) {
+                throw new IllegalStateException("Cannot complete order due to insufficient stock: " + String.join(", ", inventoryWarnings));
             }
+
+            order.setInventoryAdjusted(true);
+            order.setStatus(newStatus);
         } else if (newStatus == Order.Status.CANCELLED && isInventoryAdjusted) {
             for (OrderItem item : order.getItems()) {
                 ProductBatch batch = item.getBatch();
                 if (batch != null) {
-                    batch.setQuantity(batch.getQuantity() + item.getQuantity());
+                    batch.setUnits(batch.getUnits() + item.getUnits());
                     productBatchRepository.save(batch);
                 } else {
                     logger.warn("Batch not found for order item ID: " + item.getId() + " during order cancellation.");
@@ -322,8 +327,8 @@ public class OrderService {
             if (inventoryWarnings.isEmpty()) {
                 order.setInventoryAdjusted(false);
             }
+            order.setStatus(newStatus);
         } else {
-            // Handle other status transitions (e.g., PENDING to CANCELLED without inventory adjustment, or to PAID)
             order.setStatus(newStatus);
         }
 
@@ -392,7 +397,7 @@ public class OrderService {
                 if (productOptional.isPresent()) {
                     Product product = productOptional.get();
                     String categoryName = product.getCategory().getCategoryName();
-                    double itemTotal = item.getSellingPrice() * item.getQuantity();
+                    double itemTotal = item.getSellingPrice() * item.getUnits();
                     categorySales.merge(categoryName, itemTotal, Double::sum);
                 }
             }
@@ -409,7 +414,7 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
-    public int getPendingPreOrdersQuantity() {
+    public double getPendingPreOrdersUnits() {
         List<Order> pendingOrders = orderRepository.findAllWithItems().stream()
                 .filter(order -> order.getOrderType() == Order.OrderType.ECOMMERCE)
                 .filter(order -> order.getStatus() == Order.Status.PENDING || order.getStatus() == Order.Status.PROCESSING)
@@ -417,7 +422,7 @@ public class OrderService {
 
         return pendingOrders.stream()
                 .flatMap(order -> order.getItems().stream())
-                .mapToInt(OrderItem::getQuantity)
+                .mapToDouble(OrderItem::getUnits)
                 .sum();
     }
 
@@ -437,7 +442,7 @@ public class OrderService {
             OrderItemDTO itemDTO = new OrderItemDTO();
             itemDTO.setId(item.getId());
             itemDTO.setProductId(item.getProductId());
-            itemDTO.setQuantity(item.getQuantity());
+            itemDTO.setUnits(item.getUnits());
             itemDTO.setSellingPrice(item.getSellingPrice());
             return itemDTO;
         }).collect(Collectors.toList());

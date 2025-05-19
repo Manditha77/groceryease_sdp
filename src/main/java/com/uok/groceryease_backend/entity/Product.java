@@ -40,10 +40,19 @@ public class Product {
     private List<ProductBatch> batches = new ArrayList<>();
 
     @Column(name = "barcode", unique = true)
-    private String barcode; // New barcode field
+    private String barcode;
 
-    // Helper method to get total quantity
-    public int getTotalQuantity() {
-        return batches.stream().mapToInt(ProductBatch::getQuantity).sum();
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit_type", nullable = false)
+    private UnitType unitType = UnitType.DISCRETE; // Default to DISCRETE for existing products
+
+    public enum UnitType {
+        DISCRETE, // Integer counts (e.g., 1, 2, 10)
+        WEIGHT   // Kilograms (e.g., 1.5, 2.25)
+    }
+
+    // Helper method to get total units
+    public double getTotalUnits() {
+        return batches.stream().mapToDouble(ProductBatch::getUnits).sum();
     }
 }

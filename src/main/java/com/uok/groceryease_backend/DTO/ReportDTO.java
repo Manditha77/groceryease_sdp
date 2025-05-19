@@ -17,7 +17,7 @@ public class ReportDTO {
     private String productName;
     private String categoryName;
     private String supplierName;
-    private int totalQuantity;
+    private double totalQuantity; // Changed from int to double
     private LocalDateTime lastRestockDate;
 
     // Sales Performance Report
@@ -29,11 +29,11 @@ public class ReportDTO {
     private LocalDateTime latestOrderDate;
 
     // Product Sales Report
-    private int totalUnitsSold;
+    private double totalUnitsSold; // Changed from int to double
     private double totalRevenue;
 
     // Restock History Report
-    private int quantityRestocked;
+    private double quantityRestocked; // Changed from int to double
     private double buyingPrice;
 
     // Customer Purchase Report

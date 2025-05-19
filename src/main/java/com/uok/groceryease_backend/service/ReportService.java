@@ -27,23 +27,31 @@ public class ReportService {
 
     // 1. Inventory Stock Report
     public List<ReportDTO> generateInventoryStockReport(LocalDateTime startDate, LocalDateTime endDate) {
-        String jpql = "SELECT p.productId, p.productName, p.category.categoryName, p.supplier.companyName, " +
-                "COALESCE(SUM(pb.quantity), 0) as totalQuantity, " +
-                "MAX(pb.createdDate) as lastRestockDate " +
+        String baseJpql = "SELECT p.productId, p.productName, p.category.categoryName, p.supplier.companyName, " +
+                "COALESCE((SELECT SUM(b.units) FROM p.batches b), 0) as totalUnits, " +
+                "(SELECT MAX(b.createdDate) FROM p.batches b) as lastRestockDate " +
                 "FROM Product p " +
                 "LEFT JOIN p.category " +
                 "LEFT JOIN p.supplier " +
-                "LEFT JOIN p.batches pb ";
-        if (startDate != null && endDate != null) {
-            jpql += "WHERE pb.createdDate BETWEEN :startDate AND :endDate ";
+                "GROUP BY p.productId, p.productName, p.category.categoryName, p.supplier.companyName";
+
+        String jpql = baseJpql;
+        if (startDate != null || endDate != null) {
+            jpql += " HAVING (";
+            if (startDate != null) {
+                jpql += "(SELECT MIN(b.createdDate) FROM p.batches b) >= :startDate";
+                if (endDate != null) jpql += " AND ";
+            }
+            if (endDate != null) {
+                jpql += "(SELECT MAX(b.createdDate) FROM p.batches b) <= :endDate";
+            }
+            jpql += ")";
         }
-        jpql += "GROUP BY p.productId, p.productName, p.category.categoryName, p.supplier.companyName";
 
         Query query = entityManager.createQuery(jpql, Object[].class);
-        if (startDate != null && endDate != null) {
-            query.setParameter("startDate", startDate);
-            query.setParameter("endDate", endDate);
-        }
+        if (startDate != null) query.setParameter("startDate", startDate);
+        if (endDate != null) query.setParameter("endDate", endDate);
+
         List<Object[]> results = query.getResultList();
 
         return results.stream().map(result -> {
@@ -52,7 +60,7 @@ public class ReportService {
             dto.setProductName((String) result[1]);
             dto.setCategoryName((String) result[2]);
             dto.setSupplierName((String) result[3]);
-            dto.setTotalQuantity(((Number) result[4]).intValue());
+            dto.setTotalQuantity(((Number) result[4]).doubleValue());
             dto.setLastRestockDate((LocalDateTime) result[5]);
             return dto;
         }).collect(Collectors.toList());
@@ -94,8 +102,8 @@ public class ReportService {
     // 3. Product Sales Report
     public List<ReportDTO> generateProductSalesReport(LocalDateTime startDate, LocalDateTime endDate) {
         String jpql = "SELECT p.productId, p.productName, p.category.categoryName, " +
-                "SUM(oi.quantity) as totalUnitsSold, " +
-                "SUM(oi.quantity * oi.sellingPrice) as totalRevenue " +
+                "SUM(oi.units) as totalUnitsSold, " +
+                "SUM(oi.units * oi.sellingPrice) as totalRevenue " +
                 "FROM OrderItem oi " +
                 "JOIN oi.order o " +
                 "JOIN Product p ON oi.productId = p.productId " +
@@ -116,7 +124,7 @@ public class ReportService {
             dto.setProductId((Long) result[0]);
             dto.setProductName((String) result[1]);
             dto.setCategoryName((String) result[2]);
-            dto.setTotalUnitsSold(((Number) result[3]).intValue());
+            dto.setTotalUnitsSold(((Number) result[3]).doubleValue());
             dto.setTotalRevenue(((Number) result[4]).doubleValue());
             return dto;
         }).collect(Collectors.toList());
@@ -124,21 +132,28 @@ public class ReportService {
 
     // 4. Restock History Report
     public List<ReportDTO> generateRestockHistoryReport(LocalDateTime startDate, LocalDateTime endDate) {
-        String jpql = "SELECT p.productId, p.productName, p.supplier.companyName, " +
-                "pb.quantity, pb.buyingPrice, pb.createdDate " +
-                "FROM Product p " +
-                "JOIN p.batches pb " +
+        String baseJpql = "SELECT p.productId, p.productName, p.supplier.companyName, " +
+                "b.units, b.buyingPrice, b.createdDate " +
+                "FROM Product p, IN(p.batches) b " +
                 "JOIN p.supplier ";
-        if (startDate != null && endDate != null) {
-            jpql += "WHERE pb.createdDate BETWEEN :startDate AND :endDate ";
+
+        String jpql = baseJpql;
+        if (startDate != null || endDate != null) {
+            jpql += "WHERE ";
+            if (startDate != null) {
+                jpql += "b.createdDate >= :startDate";
+                if (endDate != null) jpql += " AND ";
+            }
+            if (endDate != null) {
+                jpql += "b.createdDate <= :endDate";
+            }
         }
-        jpql += "ORDER BY pb.createdDate DESC";
+        jpql += " ORDER BY b.createdDate DESC";
 
         Query query = entityManager.createQuery(jpql, Object[].class);
-        if (startDate != null && endDate != null) {
-            query.setParameter("startDate", startDate);
-            query.setParameter("endDate", endDate);
-        }
+        if (startDate != null) query.setParameter("startDate", startDate);
+        if (endDate != null) query.setParameter("endDate", endDate);
+
         List<Object[]> results = query.getResultList();
 
         return results.stream().map(result -> {
@@ -146,7 +161,7 @@ public class ReportService {
             dto.setProductId((Long) result[0]);
             dto.setProductName((String) result[1]);
             dto.setSupplierName((String) result[2]);
-            dto.setQuantityRestocked(((Number) result[3]).intValue());
+            dto.setQuantityRestocked(((Number) result[3]).doubleValue());
             dto.setBuyingPrice(((Number) result[4]).doubleValue());
             dto.setLastRestockDate((LocalDateTime) result[5]);
             return dto;
@@ -190,9 +205,9 @@ public class ReportService {
     // 6. Profitability Report
     public List<ReportDTO> generateProfitabilityReport(LocalDateTime startDate, LocalDateTime endDate) {
         String jpql = "SELECT p.productId, p.productName, " +
-                "SUM(oi.quantity) as totalUnitsSold, " +
-                "SUM(oi.quantity * oi.sellingPrice) as totalRevenue, " +
-                "SUM(CASE WHEN oi.batch IS NOT NULL THEN oi.quantity * oi.batch.buyingPrice ELSE 0 END) as totalCost " +
+                "SUM(oi.units) as totalUnitsSold, " +
+                "SUM(oi.units * oi.sellingPrice) as totalRevenue, " +
+                "SUM(CASE WHEN oi.batch IS NOT NULL THEN oi.units * oi.batch.buyingPrice ELSE 0 END) as totalCost " +
                 "FROM OrderItem oi " +
                 "JOIN oi.order o " +
                 "JOIN Product p ON oi.productId = p.productId " +
@@ -211,7 +226,7 @@ public class ReportService {
             ReportDTO dto = new ReportDTO();
             dto.setProductId((Long) result[0]);
             dto.setProductName((String) result[1]);
-            dto.setTotalUnitsSold(((Number) result[2]).intValue());
+            dto.setTotalUnitsSold(((Number) result[2]).doubleValue());
             dto.setTotalRevenue(((Number) result[3]).doubleValue());
             double totalCost = ((Number) result[4]).doubleValue();
             dto.setTotalCost(totalCost);

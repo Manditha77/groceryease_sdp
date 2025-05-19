@@ -22,7 +22,7 @@ public class OrderItem {
     private Long productId;
 
     @Column(nullable = false)
-    private Integer quantity;
+    private Double units; // Changed from Integer quantity to Double units
 
     @Column(name = "selling_price", nullable = false)
     private Double sellingPrice;

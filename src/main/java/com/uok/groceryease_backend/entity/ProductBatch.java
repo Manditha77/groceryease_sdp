@@ -25,8 +25,8 @@ public class ProductBatch {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
-    @Column(name = "quantity", nullable = false)
-    private int quantity;
+    @Column(name = "units", nullable = false)
+    private double units; // Changed from int quantity to double units
 
     @Column(name = "buying_price", nullable = false)
     private double buyingPrice;
@@ -36,4 +36,7 @@ public class ProductBatch {
 
     @Column(name = "created_date", nullable = false)
     private LocalDateTime createdDate = LocalDateTime.now();
+
+    @Column(name = "expire_date", nullable = false)
+    private LocalDateTime expireDate; // New field for expiration date
 }

@@ -29,14 +29,14 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    private User user; // Link to User (Customer) for credit customers
+    private User user;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "order_id")
     private List<OrderItem> items;
 
     public enum Status {
-        PENDING, PROCESSING, COMPLETED, CANCELLED, PAID // Added PAID status
+        PENDING, PROCESSING, COMPLETED, CANCELLED, PAID
     }
 
     public enum OrderType {

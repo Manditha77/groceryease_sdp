@@ -12,6 +12,6 @@ import lombok.Setter;
 public class OrderItemDTO {
     private Long id;
     private Long productId;
-    private Integer quantity;
+    private Double units; // Changed from Integer quantity to Double units
     private Double sellingPrice;
 }
