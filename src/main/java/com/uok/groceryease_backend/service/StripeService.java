@@ -17,38 +17,37 @@ public class StripeService {
     private String stripeApiKey;
 
     public StripeService() {
-        Stripe.apiKey = stripeApiKey; // Set your Stripe secret key
+        Stripe.apiKey = stripeApiKey;
     }
 
-    public Map<String, String> createCheckoutSession(Map<String, Object> request) throws StripeException {
-        // Validate Stripe API key
+    public Map<String, String> createCheckoutSession(Map<String, Object> request, String origin) throws StripeException {
         if (stripeApiKey == null || stripeApiKey.isEmpty() || !stripeApiKey.startsWith("sk_test_")) {
             throw new IllegalArgumentException("Stripe API key is invalid or not configured");
         }
         Stripe.apiKey = stripeApiKey;
 
-        // Extract and validate amount
         Number amountObj = (Number) request.get("amount");
         if (amountObj == null) {
             throw new IllegalArgumentException("Amount is required and must be a number");
         }
         long amount = amountObj.longValue();
-        if (amount <= 50) { // Minimum amount for most currencies
+        if (amount <= 50) {
             throw new IllegalArgumentException("Amount must be greater than 50 cents");
         }
 
-        // Extract currency
         String currency = (String) request.get("currency");
         if (currency == null || currency.isEmpty()) {
             throw new IllegalArgumentException("Currency is required");
         }
         String effectiveCurrency = currency.toLowerCase().equals("lkr") ? "lkr" : "usd";
 
-        // Build Stripe Checkout Session parameters
+        String successUrl = origin + "/checkout?payment=success";
+        String cancelUrl = origin + "/checkout?payment=cancel";
+
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setSuccessUrl("http://localhost:3000/checkout?payment=success&orderId={CHECKOUT_SESSION_ID}")
-                .setCancelUrl("http://localhost:3000/checkout?payment=cancel")
+                .setSuccessUrl(successUrl)
+                .setCancelUrl(cancelUrl)
                 .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
@@ -68,10 +67,19 @@ public class StripeService {
                 )
                 .build();
 
-        // Create the Stripe Checkout Session
         Session session = Session.create(params);
+        System.out.println("Created Stripe Session with ID: " + session.getId());
+        System.out.println("Success URL: " + session.getSuccessUrl());
         Map<String, String> response = new HashMap<>();
         response.put("sessionId", session.getId());
+        return response;
+    }
+
+    public Map<String, String> getSessionStatus(String sessionId) throws StripeException {
+        Session session = Session.retrieve(sessionId);
+        Map<String, String> response = new HashMap<>();
+        response.put("status", session.getStatus());
+        response.put("paymentStatus", session.getPaymentStatus());
         return response;
     }
 }
