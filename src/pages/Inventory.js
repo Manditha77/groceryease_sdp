@@ -658,13 +658,13 @@ const Inventory = () => {
             productName: rawProductName,
             categoryName: product.categoryName,
             supplierCompanyName: product.supplierCompanyName,
-            units: "",
-            buyingPrice: "",
-            sellingPrice: "",
+            units: product.units,
+            buyingPrice: product.buyingPrice,
+            sellingPrice: product.sellingPrice,
             image: product.base64Image ? `data:image/jpeg;base64,${product.base64Image}` : defaultImage,
             barcode: product.barcode || "",
             unitType: product.unitType || "DISCRETE",
-            expireDate: "",
+            expireDate: product.expireDate ? product.expireDate.split("T")[0] : "",
         });
         setUseBarcode(!!product.barcode);
         setSelectedProductId(productId);
@@ -1260,7 +1260,6 @@ const Inventory = () => {
                                         value={formData.productName}
                                         onChange={handleChange}
                                         variant="outlined"
-                                        disabled={isEditMode && !formData.productName}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -1269,7 +1268,6 @@ const Inventory = () => {
                                         value={formData.categoryName || ""}
                                         onChange={handleCategoryChange}
                                         renderInput={(params) => <TextField {...params} label="Category *" variant="outlined" />}
-                                        disabled={isEditMode && !formData.categoryName}
                                     />
                                 </Grid>
                                 {!isEditMode && (
@@ -1352,7 +1350,6 @@ const Inventory = () => {
                                             value={formData.supplierCompanyName || ""}
                                             onChange={handleSupplierChange}
                                             renderInput={(params) => <TextField {...params} label="Supplier *" variant="outlined" />}
-                                            disabled={isEditMode && !formData.supplierCompanyName}
                                         />
                                     </Grid>
                                 )}
@@ -1369,7 +1366,6 @@ const Inventory = () => {
                                                     }
                                                 }}
                                                 color="primary"
-                                                disabled={isEditMode}
                                             />
                                         }
                                         label="Use Barcode (untick if barcode is not available)"
@@ -1383,7 +1379,7 @@ const Inventory = () => {
                                                 value={formData.barcode}
                                                 onChange={handleChange}
                                                 variant="outlined"
-                                                disabled={!useBarcode || isEditMode}
+                                                disabled={!useBarcode}
                                             />
                                         </Grid>
                                         <Grid item xs={3}>
@@ -1391,7 +1387,7 @@ const Inventory = () => {
                                                 variant="contained"
                                                 onClick={handleOpenScannerDialog}
                                                 sx={{ bgcolor: "#007bff", textTransform: "none" }}
-                                                disabled={!useBarcode || isEditMode}
+                                                disabled={!useBarcode}
                                             >
                                                 Scan
                                             </Button>
@@ -1421,10 +1417,10 @@ const Inventory = () => {
                                         borderColor: "#007bff",
                                     },
                                 }}
-                                onClick={() => !isEditMode && document.getElementById("fileInput").click()}
+                                onClick={() => document.getElementById("fileInput").click()}
                             >
                                 {!formData.image && <Typography variant="h4" sx={{ color: "#ccc" }}>+</Typography>}
-                                <input id="fileInput" type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} disabled={isEditMode} />
+                                <input id="fileInput" type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
                                 {formData.image && (
                                     <img
                                         src={formData.image instanceof File ? URL.createObjectURL(formData.image) : formData.image}

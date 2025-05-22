@@ -362,6 +362,26 @@ const Dashboard = () => {
         }
     };
 
+// Add state for phone number
+//     const [customerPhone, setCustomerPhone] = useState('');
+
+// Update handleOrderClick to fetch phone number
+//     const handleOrderClick = async (order) => {
+//         setSelectedOrder(order);
+//         setNewStatus(order.status);
+//         setOrderDialogOpen(true);
+//         try {
+//             const userResponse = await authService.getUser(order.customerName);
+//             setCustomerPhone(userResponse.phoneNo || 'N/A');
+//         } catch (error) {
+//             console.error('Error fetching customer phone number:', error);
+//             setCustomerPhone('N/A');
+//             setErrorMessage('Failed to load customer phone number.');
+//             setOpenUpdateSnackbar(true);
+//             setUpdateSeverity('error');
+//         }
+//     };
+
     return (
         <Box sx={{ padding: 1.5, paddingTop: 7, bgcolor: '#f7f9fc', minHeight: '100vh' }}>
             <Snackbar open={open} autoHideDuration={3000} onClose={handleClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
@@ -371,10 +391,8 @@ const Dashboard = () => {
                 <Alert onClose={handleUpdateSnackbarClose} severity={updateSeverity} sx={{ width: '100%' }}>{updateMessage}</Alert>
             </Snackbar>
             <Snackbar open={openNewOrderSnackbar} autoHideDuration={6000} onClose={handleNewOrderSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'right' }} TransitionComponent={TransitionRight}>
-                <Alert onClose={handleNewOrderSnackbarClose} severity="info" sx={{ width: '100%', bgcolor: '#0288d1', color: '#fff' }}>
-                    <Badge badgeContent={<Warning color="error" />} color="error">
-                        New Order Received! Order ID: {newOrderNotification?.orderId} from {newOrderNotification?.customerName}
-                    </Badge>
+                <Alert onClose={handleNewOrderSnackbarClose} severity="info" sx={{ width: '100%', bgcolor: '#e0f7fa', color: '#01579b', fontWeight: 500 }}>
+                    New Order Received! Order ID: {newOrderNotification?.orderId} from {newOrderNotification?.customerName}
                 </Alert>
             </Snackbar>
             <Snackbar open={openNotificationSnackbar} autoHideDuration={6000} onClose={handleNotificationSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
@@ -460,7 +478,7 @@ const Dashboard = () => {
                                                 <ChartTooltip />
                                                 <Legend wrapperStyle={{ fontSize: '10px' }} />
                                                 <Bar dataKey="sales" name="Total Sales" fill="#1976d2" />
-                                                <Bar dataKey="onlineSales" name="Online Sales" fill="#2e7d32" />
+                                                {/*<Bar dataKey="onlineSales" name="Online Sales" fill="#2e7d32" />*/}
                                             </BarChart>
                                         </ResponsiveContainer>
                                     )}

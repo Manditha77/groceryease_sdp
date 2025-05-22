@@ -69,8 +69,8 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
     return (
         <AppBar position="fixed" sx={{ background: 'linear-gradient(90deg, #53F47E 0%, #2E7D32 100%)', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)', zIndex: 1200, }}>
             <Toolbar>
-                <Title variant="h6" sx={{ color: '#000000', fontWeight: 'bold', fontSize: 26 }}>
-                    GroceryEase
+                <Title variant="h6" sx={{ color: '#fffcfc', fontWeight: 'bold', fontSize: 26 }}>
+                    Samantha Store
                 </Title>
                 {isAuthenticated ? (
                     <>
@@ -126,26 +126,44 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
                     </>
                 ) : (
                     <>
-                        <Button color="inherit" sx={{ textTransform: 'none' }}>
-                            <StyledLink to="/login" active={location.pathname === '/login'}>
+                        <Button
+                            color="inherit"
+                            sx={{
+                                textTransform: 'none',
+                                color: '#ffffff', // White color for the button text
+                                fontSize: '1.25rem', // Larger font size (adjust as needed, 1.25rem = 20px)
+                                '&:hover': {
+                                    color: '#f0f0f0', // Slightly off-white on hover for better UX
+                                },
+                            }}
+                        >
+                            <StyledLink
+                                to="/login"
+                                active={location.pathname === '/login'}
+                                sx={{
+                                    color: 'inherit', // Ensures StyledLink inherits the white color from the Button
+                                    fontSize: 'inherit', // Inherits the larger font size from the Button
+                                    textDecoration: 'none', // Removes any default underline
+                                }}
+                            >
                                 Login Page
                             </StyledLink>
                         </Button>
-                        <Button color="inherit" sx={{ textTransform: 'none' }}>
-                            <StyledLink to="/register" active={location.pathname === '/register'}>
-                                Customer Registration
-                            </StyledLink>
-                        </Button>
-                        <Button color="inherit" sx={{ textTransform: 'none' }}>
-                            <StyledLink to="/aboutUs" active={location.pathname === '/dashboard'}>
-                                About Us
-                            </StyledLink>
-                        </Button>
-                        <Button color="inherit" sx={{ textTransform: 'none' }}>
-                            <StyledLink to="/contactUs" active={location.pathname === '/dashboard'}>
-                                Contact Us
-                            </StyledLink>
-                        </Button>
+                        {/*<Button color="inherit" sx={{ textTransform: 'none' }}>*/}
+                        {/*    <StyledLink to="/register" active={location.pathname === '/register'}>*/}
+                        {/*        Customer Registration*/}
+                        {/*    </StyledLink>*/}
+                        {/*</Button>*/}
+                        {/*<Button color="inherit" sx={{ textTransform: 'none' }}>*/}
+                        {/*    <StyledLink to="/aboutUs" active={location.pathname === '/dashboard'}>*/}
+                        {/*        About Us*/}
+                        {/*    </StyledLink>*/}
+                        {/*</Button>*/}
+                        {/*<Button color="inherit" sx={{ textTransform: 'none' }}>*/}
+                        {/*    <StyledLink to="/contactUs" active={location.pathname === '/dashboard'}>*/}
+                        {/*        Contact Us*/}
+                        {/*    </StyledLink>*/}
+                        {/*</Button>*/}
                     </>
                 )}
             </Toolbar>

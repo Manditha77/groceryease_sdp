@@ -49,7 +49,7 @@ const Reports = () => {
                             data={{
                                 labels: inventoryLabels,
                                 datasets: [{
-                                    label: 'Total Quantity',
+                                    label: 'Total Units',
                                     data: inventoryData,
                                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                                     borderColor: 'rgba(75, 192, 192, 1)',
@@ -67,7 +67,7 @@ const Reports = () => {
                                     <TableCell>Product Name</TableCell>
                                     <TableCell>Category</TableCell>
                                     <TableCell>Supplier</TableCell>
-                                    <TableCell>Total Quantity</TableCell>
+                                    <TableCell>Total Units</TableCell>
                                     <TableCell>Last Restock Date</TableCell>
                                 </TableRow>
                             </TableHead>

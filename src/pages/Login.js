@@ -128,18 +128,7 @@ const Login = ({ setIsAuthenticated }) => {
                         >
                             Login
                         </Button>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
-                            <Button variant="text" sx={{ textTransform: "none", color: "gray" }}>
-                                Forgot Password?
-                            </Button>
-                        </Box>
                     </form>
-                    <Typography sx={{ mt: 3, textAlign: "center", color: "gray" }}>
-                        New to GroceryEase?{" "}
-                        <Link onClick={handleRegisterClick} sx={{ fontWeight: "bold", color: "#2E7D32", cursor: "pointer" }}>
-                            Register Here
-                        </Link>
-                    </Typography>
                 </Box>
             </Grid>
         </Grid>

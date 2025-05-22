@@ -1185,11 +1185,11 @@ const PosTerminal = () => {
                             }}
                         >
                             <Typography sx={{ fontSize: '16px', fontWeight: 'bold', mb: 1 }}>
-                                GroceryEase
+                                Samantha Store
                             </Typography>
                             <Typography sx={{ fontSize: '10px', mb: 2 }}>
-                                123 Main Street, Colombo, Sri Lanka<br/>
-                                Phone: +94 112 345 678
+                                33/23, Gaminipura - Meegoda<br/>
+                                Phone: 076 203 80 83
                             </Typography>
                             <Divider sx={{ borderStyle: 'dashed', borderColor: '#000', my: 1 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '4px', mb: 2, textAlign: 'left' }}>
