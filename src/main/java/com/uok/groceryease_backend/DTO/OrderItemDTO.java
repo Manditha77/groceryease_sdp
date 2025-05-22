@@ -14,4 +14,5 @@ public class OrderItemDTO {
     private Long productId;
     private Double units; // Changed from Integer quantity to Double units
     private Double sellingPrice;
+    private String productName;
 }

@@ -444,6 +444,9 @@ public class OrderService {
             itemDTO.setProductId(item.getProductId());
             itemDTO.setUnits(item.getUnits());
             itemDTO.setSellingPrice(item.getSellingPrice());
+            // Fetch product name from Product entity
+            Optional<Product> productOptional = productRepository.findById(item.getProductId());
+            itemDTO.setProductName(productOptional.map(Product::getProductName).orElse("Unknown Product"));
             return itemDTO;
         }).collect(Collectors.toList());
         orderDTO.setItems(itemDTOs);
