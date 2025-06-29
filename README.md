@@ -1,1 +1,1 @@
-I have uploaded all works i have done in separet braches(frontend, backend and frontend-ecommerce) to master branche in separate folders.
+I have uploaded all works I have done in separet branches(frontend, backend and frontend-ecommerce) to master branch in separate folders.
